@@ -208,6 +208,72 @@
 .lp-bar-blue   { background: #4a90d9; }
 .lp-bar-purple { background: #8b5cf6; }
 
+/* ------------------------------------------------------------------ */
+/* How it works modal                                                  */
+/* ------------------------------------------------------------------ */
+
+.lp-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.lp-modal-overlay.is-open {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.lp-modal {
+    background: #000;
+    border-radius: var(--radius-lg);
+    position: relative;
+    width: min(860px, 90vw);
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+}
+
+.lp-modal-close {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    color: #fff;
+    font-size: 1rem;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    transition: background 0.2s;
+    line-height: 1;
+}
+
+.lp-modal-close:hover {
+    background: rgba(255, 255, 255, 0.28);
+}
+
+.lp-modal-video {
+    aspect-ratio: 16 / 9;
+}
+
+.lp-modal-video iframe {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border: none;
+}
+
 /* Responsive */
 @media (max-width: 600px) {
     .lp-stats {
