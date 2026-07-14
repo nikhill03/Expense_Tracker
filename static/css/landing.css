@@ -1,0 +1,220 @@
+/* ------------------------------------------------------------------ */
+/* Hero — landing page                                                 */
+/* ------------------------------------------------------------------ */
+
+.lp-hero {
+    padding: 4.5rem 2rem 5rem;
+    text-align: center;
+    background: var(--paper);
+}
+
+.lp-hero-inner {
+    max-width: 680px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+/* Badge */
+.lp-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    padding: 0.35rem 1rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--accent);
+    background: var(--accent-light);
+}
+
+.lp-badge-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+}
+
+/* Title */
+.lp-title {
+    font-family: var(--font-display);
+    font-size: clamp(2.5rem, 6vw, 4rem);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin: 0;
+}
+
+.lp-title-accent {
+    color: var(--accent);
+}
+
+/* Subtitle */
+.lp-subtitle {
+    font-size: 1.05rem;
+    color: var(--ink-muted);
+    line-height: 1.7;
+    max-width: 480px;
+    margin: 0;
+}
+
+/* CTA buttons */
+.lp-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.lp-btn-dark {
+    display: inline-block;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0.75rem 1.75rem;
+    border-radius: var(--radius-md);
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.lp-btn-dark:hover {
+    background: var(--accent);
+}
+
+/* Browser mock */
+.lp-browser {
+    width: 100%;
+    max-width: 640px;
+    background: var(--paper-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.07);
+    overflow: hidden;
+    margin-top: 0.5rem;
+    text-align: left;
+}
+
+.lp-browser-bar {
+    background: var(--paper-warm);
+    border-bottom: 1px solid var(--border);
+    padding: 0.65rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.lp-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.lp-dot-red    { background: #ff5f57; }
+.lp-dot-yellow { background: #febc2e; }
+.lp-dot-green  { background: #28c840; }
+
+.lp-browser-body {
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* Stat cards */
+.lp-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+}
+
+.lp-stat-card {
+    background: var(--paper);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-sm);
+    padding: 0.875rem 1rem;
+}
+
+.lp-stat-label {
+    font-size: 0.75rem;
+    color: var(--ink-muted);
+    margin-bottom: 0.3rem;
+}
+
+.lp-stat-value {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    color: var(--ink);
+    margin-bottom: 0.2rem;
+    line-height: 1.2;
+}
+
+.lp-stat-sans {
+    font-family: var(--font-body);
+    font-weight: 600;
+}
+
+.lp-stat-sub {
+    font-size: 0.75rem;
+    color: var(--ink-faint);
+}
+
+.lp-sub-danger  { color: var(--danger); }
+.lp-sub-success { color: var(--accent); }
+
+/* Bar chart */
+.lp-bars {
+    background: var(--paper);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-sm);
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+}
+
+.lp-bar-row {
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.lp-bar-cat {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--ink-soft);
+}
+
+.lp-bar-track {
+    height: 8px;
+    background: var(--border-soft);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.lp-bar {
+    height: 100%;
+    border-radius: 999px;
+}
+
+.lp-bar-orange { background: #e8912d; }
+.lp-bar-blue   { background: #4a90d9; }
+.lp-bar-purple { background: #8b5cf6; }
+
+/* Responsive */
+@media (max-width: 600px) {
+    .lp-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .lp-subtitle br {
+        display: none;
+    }
+}
