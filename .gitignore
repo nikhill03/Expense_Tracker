@@ -1,0 +1,7 @@
+expense_tracker.db
+__pycache__/
+*.pyc
+*.pyo
+.env
+.DS_Store
+.claude/plans/
