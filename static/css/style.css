@@ -550,6 +550,175 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ------------------------------------------------------------------ */
+/* Profile page                                                        */
+/* ------------------------------------------------------------------ */
+
+.profile-page {
+    max-width: 860px;
+    margin: 3rem auto;
+    padding: 0 1.5rem 4rem;
+}
+
+.profile-header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 2.5rem;
+}
+
+.profile-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--paper);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.profile-info { flex: 1; }
+
+.profile-name {
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    color: var(--ink);
+    margin-bottom: 0.25rem;
+}
+
+.profile-meta {
+    font-size: 0.875rem;
+    color: var(--ink-muted);
+    margin: 0.15rem 0;
+}
+
+.profile-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+}
+
+.stat-card {
+    background: var(--paper-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1.25rem 1.5rem;
+}
+
+.stat-value {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    color: var(--ink);
+}
+
+.stat-label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 0.25rem;
+}
+
+.profile-section-title {
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    color: var(--ink);
+    margin: 0 0 1rem;
+}
+
+.profile-table-wrap {
+    background: var(--paper-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin-bottom: 2.5rem;
+}
+
+.profile-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.profile-table th {
+    background: var(--paper-warm);
+    color: var(--ink-muted);
+    font-weight: 500;
+    text-align: left;
+    padding: 0.75rem 1.25rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border);
+}
+
+.profile-table td {
+    padding: 0.9rem 1.25rem;
+    border-bottom: 1px solid var(--border-soft);
+    color: var(--ink-soft);
+}
+
+.profile-table tr:last-child td { border-bottom: none; }
+
+.profile-table .amount-cell {
+    text-align: right;
+    font-weight: 500;
+    color: var(--ink);
+}
+
+/* Category badges */
+.badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+.badge--food          { background: var(--accent-light);   color: var(--accent); }
+.badge--shopping      { background: var(--accent-2-light); color: var(--accent-2); }
+.badge--bills         { background: #eef0f8; color: #3d5a9e; }
+.badge--entertainment { background: #f3eef8; color: #7b4fa6; }
+.badge--health        { background: #eef8f2; color: #2e7d52; }
+.badge--transport     { background: var(--paper-warm); color: var(--ink-muted); }
+.badge--other         { background: var(--paper-warm); color: var(--ink-muted); }
+
+/* Category breakdown */
+.profile-categories {
+    background: var(--paper-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.cat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.9rem 1.25rem;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.cat-row:last-child { border-bottom: none; }
+
+.cat-name {
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+}
+
+.cat-amount {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ */
 /* Responsive                                                          */
 /* ------------------------------------------------------------------ */
 
