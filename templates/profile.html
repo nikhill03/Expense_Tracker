@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Profile — Spendly{% endblock %}
+
+{% block content %}
+
+<section class="legal-page">
+    <div class="legal-inner">
+        <h1 class="legal-title">Welcome, {{ session.get('user_name', 'User') }}</h1>
+        <p class="legal-updated">Profile page — coming in Step 4</p>
+    </div>
+</section>
+
+{% endblock %}
