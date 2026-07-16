@@ -1,8 +1,9 @@
 import sqlite3
+from datetime import date, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from database.db import get_db, init_db, seed_db
-from database.queries import get_user_by_id, get_summary_stats, get_recent_transactions, get_category_breakdown
+from database.queries import get_user_by_id, get_summary_stats, get_recent_transactions, get_category_breakdown, get_filtered_expenses
 
 app = Flask(__name__)
 app.secret_key = "dev-secret-change-me"
@@ -105,10 +106,37 @@ def profile():
         return redirect(url_for("login"))
 
     user_id = session["user_id"]
+    today   = date.today()
+
+    preset      = request.args.get("preset", "")
+    custom_from = request.args.get("from", "").strip()
+    custom_to   = request.args.get("to",   "").strip()
+
+    if preset == "this_month":
+        active_preset = "this_month"
+        from_date = today.replace(day=1).isoformat()
+        to_date   = today.isoformat()
+    elif preset == "last_3_months":
+        active_preset = "last_3_months"
+        from_date = (today - timedelta(days=90)).isoformat()
+        to_date   = today.isoformat()
+    elif preset == "last_6_months":
+        active_preset = "last_6_months"
+        from_date = (today - timedelta(days=180)).isoformat()
+        to_date   = today.isoformat()
+    elif custom_from and custom_to:
+        active_preset = "custom"
+        from_date = custom_from
+        to_date   = custom_to
+    else:
+        active_preset = "all"
+        from_date = None
+        to_date   = None
+
     user         = get_user_by_id(user_id)
-    stats        = get_summary_stats(user_id)
-    transactions = get_recent_transactions(user_id)
-    categories   = get_category_breakdown(user_id)
+    stats        = get_summary_stats(user_id, from_date, to_date)
+    transactions = get_recent_transactions(user_id, limit=None, from_date=from_date, to_date=to_date)
+    categories   = get_category_breakdown(user_id, from_date, to_date)
 
     return render_template(
         "profile.html",
@@ -116,6 +144,32 @@ def profile():
         stats=stats,
         transactions=transactions,
         categories=categories,
+        active_preset=active_preset,
+        form_from=from_date if active_preset == "custom" else "",
+        form_to=to_date   if active_preset == "custom" else "",
+    )
+
+
+@app.route("/expenses")
+def expenses():
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    today        = date.today()
+    default_from = today.replace(day=1).isoformat()
+    default_to   = today.isoformat()
+
+    from_date = request.args.get("from", "").strip() or default_from
+    to_date   = request.args.get("to",   "").strip() or default_to
+
+    expense_list, total = get_filtered_expenses(session["user_id"], from_date, to_date)
+
+    return render_template(
+        "expenses.html",
+        expenses=expense_list,
+        total=total,
+        from_date=from_date,
+        to_date=to_date,
     )
 
 
