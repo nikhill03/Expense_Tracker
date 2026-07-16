@@ -554,9 +554,9 @@ a { color: inherit; text-decoration: none; }
 /* ------------------------------------------------------------------ */
 
 .profile-page {
-    max-width: 860px;
+    max-width: var(--max-width);
     margin: 3rem auto;
-    padding: 0 1.5rem 4rem;
+    padding: 0 2rem 4rem;
 }
 
 .profile-header {
@@ -719,6 +719,223 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ------------------------------------------------------------------ */
+/* Nav username                                                        */
+/* ------------------------------------------------------------------ */
+
+.nav-username {
+    color: var(--ink);
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Profile — user card                                                 */
+/* ------------------------------------------------------------------ */
+
+.profile-user-card {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    background: var(--paper-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1.75rem 2rem;
+    margin-bottom: 1.5rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Profile — date filter bar                                           */
+/* ------------------------------------------------------------------ */
+
+.filter-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    background: var(--paper-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.filter-presets {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.preset-btn {
+    display: inline-block;
+    padding: 0.4rem 1rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--ink-soft);
+    background: transparent;
+    text-decoration: none;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.preset-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--paper);
+}
+
+.filter-custom {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+.filter-to-label { font-size: 0.85rem; color: var(--ink-muted); }
+
+.filter-custom input[type="date"] {
+    padding: 0.4rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    color: var(--ink);
+    background: var(--paper);
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.filter-custom input[type="date"]:focus { border-color: var(--accent); }
+
+.btn-apply {
+    padding: 0.4rem 1rem;
+    background: var(--accent);
+    color: var(--paper);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.btn-apply:hover { opacity: 0.85; }
+
+/* ------------------------------------------------------------------ */
+/* Profile — two-column lower section                                  */
+/* ------------------------------------------------------------------ */
+
+.profile-lower {
+    display: grid;
+    grid-template-columns: 1.8fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.profile-card {
+    background: var(--paper-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.card-title {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    color: var(--ink);
+    margin: 0;
+    padding: 1.25rem 1.5rem 1rem;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.cat-body { padding: 1.25rem 1.5rem; }
+
+.cat-item { margin-bottom: 1.1rem; }
+.cat-item:last-child { margin-bottom: 0; }
+
+.cat-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.35rem;
+}
+
+.cat-bar-track {
+    height: 4px;
+    background: var(--border-soft);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.cat-bar {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.4s ease;
+}
+
+.bar--food          { background: var(--accent); }
+.bar--transport     { background: var(--accent-2); }
+.bar--shopping      { background: var(--accent-2); }
+.bar--health        { background: #2e7d52; }
+.bar--bills         { background: #3d5a9e; }
+.bar--entertainment { background: #7b4fa6; }
+.bar--other         { background: var(--ink-muted); }
+
+.table-empty {
+    text-align: center;
+    color: var(--ink-muted);
+    padding: 2rem;
+    font-size: 0.9rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Expense filter form                                                 */
+/* ------------------------------------------------------------------ */
+
+.expense-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+}
+
+.expense-filter label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--ink-soft);
+}
+
+.expense-filter input[type="date"] {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    color: var(--ink);
+    background: var(--paper-card);
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.expense-filter input[type="date"]:focus { border-color: var(--accent); }
+
+.expense-total {
+    font-size: 0.95rem;
+    color: var(--ink-muted);
+    margin-bottom: 1rem;
+}
+
+.expense-total strong {
+    color: var(--ink);
+    font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ */
 /* Responsive                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -733,6 +950,12 @@ a { color: inherit; text-decoration: none; }
     .hero-visual { display: none; }
 
     .features-inner { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+    .profile-lower { grid-template-columns: 1fr; }
+    .filter-bar { flex-direction: column; align-items: flex-start; }
+    .filter-custom { margin-left: 0; }
 }
 
 @media (max-width: 600px) {
