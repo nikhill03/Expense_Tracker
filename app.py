@@ -8,6 +8,8 @@ from database.queries import get_user_by_id, get_summary_stats, get_recent_trans
 app = Flask(__name__)
 app.secret_key = "dev-secret-change-me"
 
+EXPENSE_CATEGORIES = ["Food", "Transport", "Bills", "Health", "Entertainment", "Shopping", "Other"]
+
 with app.app_context():
     init_db()
     seed_db()
@@ -173,9 +175,65 @@ def expenses():
     )
 
 
-@app.route("/expenses/add")
+@app.route("/expenses/add", methods=["GET", "POST"])
 def add_expense():
-    return "Add expense — coming in Step 7"
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    today = date.today().isoformat()
+
+    if request.method == "GET":
+        return render_template("add_expense.html", categories=EXPENSE_CATEGORIES, today=today)
+
+    amount_raw   = request.form.get("amount", "").strip()
+    category     = request.form.get("category", "").strip()
+    expense_date = request.form.get("date", "").strip()
+    description  = request.form.get("description", "").strip() or None
+
+    def redisplay(error):
+        return render_template(
+            "add_expense.html",
+            categories=EXPENSE_CATEGORIES,
+            today=today,
+            error=error,
+            amount=amount_raw,
+            category=category,
+            date=expense_date,
+            description=description or "",
+        )
+
+    try:
+        amount = float(amount_raw)
+        if amount <= 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        return redisplay("Amount must be a positive number.")
+
+    if category not in EXPENSE_CATEGORIES:
+        return redisplay("Please select a valid category.")
+
+    if not expense_date:
+        return redisplay("Date is required.")
+
+    try:
+        date.fromisoformat(expense_date)
+    except ValueError:
+        return redisplay("Date must be a valid date.")
+
+    if description and len(description) > 255:
+        return redisplay("Description must be 255 characters or fewer.")
+
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO expenses (user_id, amount, category, date, description) VALUES (?, ?, ?, ?, ?)",
+            (session["user_id"], amount, category, expense_date, description),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect(url_for("expenses"))
 
 
 @app.route("/expenses/<int:id>/edit")
