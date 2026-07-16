@@ -19,7 +19,7 @@ Please check the spec name and try again."
 
 ## Step 1: Write Tests
 
-Invoke the **spendly-test-writer** subagent with the
+Invoke the **pytest-test-writer** subagent with the
 following context:
 
 - Spec file to base tests on:
@@ -44,7 +44,7 @@ proceeding to Step 2.
 ## Step 2: Run Tests
 
 Once spendly-test-writer has finished, invoke the
-**spendly-test-runner** subagent with the following
+**pytest-test-runner** subagent with the following
 context:
 
 - Test file to execute:
