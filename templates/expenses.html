@@ -30,6 +30,7 @@
                     <th>Description</th>
                     <th>Category</th>
                     <th class="amount-cell">Amount</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -40,11 +41,17 @@
                         <td>{{ e.description }}</td>
                         <td><span class="badge badge--{{ e.category | lower | replace(' ', '-') }}">{{ e.category }}</span></td>
                         <td class="amount-cell">{{ e.amount }}</td>
+                        <td class="action-cell">
+                            <a href="{{ url_for('edit_expense', expense_id=e.id) }}" class="btn-action btn-action--edit">Edit</a>
+                            <form method="post" action="{{ url_for('delete_expense', expense_id=e.id) }}" style="display:inline" onsubmit="return confirm('Delete this expense?')">
+                                <button type="submit" class="btn-action btn-action--delete">Delete</button>
+                            </form>
+                        </td>
                     </tr>
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="4" style="text-align: center; color: var(--ink-muted); padding: 2rem;">No expenses found for this date range.</td>
+                        <td colspan="5" style="text-align: center; color: var(--ink-muted); padding: 2rem;">No expenses found for this date range.</td>
                     </tr>
                 {% endif %}
             </tbody>
