@@ -825,6 +825,46 @@ a { color: inherit; text-decoration: none; }
 
 .btn-apply:hover { opacity: 0.85; }
 
+.btn-action {
+    display: inline-block;
+    padding: 0.3rem 0.75rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    font-weight: 500;
+    font-family: var(--font-body);
+    text-decoration: none;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.btn-action--edit {
+    background: var(--accent-light);
+    color: var(--accent);
+    border-color: var(--accent-light);
+}
+
+.btn-action--edit:hover { opacity: 0.75; }
+
+.btn-action--delete {
+    background: var(--danger-light);
+    color: var(--danger);
+    border-color: var(--danger-light);
+}
+
+.btn-action--delete:hover { opacity: 0.75; }
+
+.action-cell {
+    white-space: nowrap;
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.text-accent { color: var(--accent); }
+
+.label-optional { color: var(--ink-faint); font-weight: 400; }
+
 /* ------------------------------------------------------------------ */
 /* Profile — two-column lower section                                  */
 /* ------------------------------------------------------------------ */

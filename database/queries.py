@@ -19,7 +19,9 @@ def get_user_by_id(user_id):
     initials = "".join(w[0].upper() for w in name.split()[:2])
 
     try:
-        member_since = datetime.strptime(row["created_at"], "%Y-%m-%d %H:%M:%S").strftime("%B %Y")
+        member_since = datetime.strptime(
+            row["created_at"], "%Y-%m-%d %H:%M:%S"
+        ).strftime("%B %Y")
     except (ValueError, TypeError):
         member_since = row["created_at"]
 
@@ -93,12 +95,14 @@ def get_recent_transactions(user_id, limit=10, from_date=None, to_date=None):
             fmt_date = datetime.strptime(row["date"], "%Y-%m-%d").strftime("%d %b %Y")
         except (ValueError, TypeError):
             fmt_date = row["date"]
-        result.append({
-            "date": fmt_date,
-            "description": row["description"],
-            "category": row["category"],
-            "amount": f"₹{row['amount']:,.2f}",
-        })
+        result.append(
+            {
+                "date": fmt_date,
+                "description": row["description"],
+                "category": row["category"],
+                "amount": f"₹{row['amount']:,.2f}",
+            }
+        )
     return result
 
 
@@ -135,11 +139,23 @@ def get_category_breakdown(user_id, from_date=None, to_date=None):
     return items
 
 
+def get_expense_by_id(expense_id):
+    conn = get_db()
+    try:
+        return conn.execute(
+            "SELECT id, user_id, amount, category, date, description"
+            " FROM expenses WHERE id = ?",
+            (expense_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+
+
 def get_filtered_expenses(user_id, from_date, to_date):
     conn = get_db()
     try:
         rows = conn.execute(
-            "SELECT date, description, category, amount FROM expenses"
+            "SELECT id, date, description, category, amount FROM expenses"
             " WHERE user_id = ? AND date >= ? AND date <= ?"
             " ORDER BY date DESC, id DESC",
             (user_id, from_date, to_date),
@@ -150,6 +166,7 @@ def get_filtered_expenses(user_id, from_date, to_date):
     total = sum(r["amount"] for r in rows)
     expense_list = [
         {
+            "id": r["id"],
             "date": r["date"],
             "description": r["description"],
             "category": r["category"],
