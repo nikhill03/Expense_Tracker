@@ -355,7 +355,27 @@ def edit_expense(expense_id):
 
 @app.route("/expenses/<int:expense_id>/delete", methods=["POST"])
 def delete_expense(expense_id):
-    return "Delete expense — coming in Step 9"
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    expense = get_expense_by_id(expense_id)
+
+    if expense is None:
+        abort(404)
+    if expense["user_id"] != session["user_id"]:
+        abort(403)
+
+    conn = get_db()
+    try:
+        conn.execute(
+            "DELETE FROM expenses WHERE id = ? AND user_id = ?",
+            (expense_id, session["user_id"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect(url_for("profile"))
 
 
 if __name__ == "__main__":
