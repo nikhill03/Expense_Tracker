@@ -78,7 +78,7 @@ def get_recent_transactions(user_id, limit=10, from_date=None, to_date=None):
     where = " AND ".join(["user_id = ?"] + date_clauses)
     params = [user_id] + date_params
 
-    sql = f"SELECT date, description, category, amount FROM expenses WHERE {where} ORDER BY date DESC, id DESC"
+    sql = f"SELECT id, date, description, category, amount FROM expenses WHERE {where} ORDER BY date DESC, id DESC"
     if limit is not None:
         sql += " LIMIT ?"
         params.append(limit)
@@ -97,6 +97,7 @@ def get_recent_transactions(user_id, limit=10, from_date=None, to_date=None):
             fmt_date = row["date"]
         result.append(
             {
+                "id": row["id"],
                 "date": fmt_date,
                 "description": row["description"],
                 "category": row["category"],

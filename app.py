@@ -294,7 +294,7 @@ def add_expense():
     finally:
         conn.close()
 
-    return redirect(url_for("expenses"))
+    return redirect(url_for("profile"))
 
 
 @app.route("/expenses/<int:expense_id>/edit", methods=["GET", "POST"])
@@ -350,7 +350,7 @@ def edit_expense(expense_id):
     finally:
         conn.close()
 
-    return redirect(url_for("expenses"))
+    return redirect(url_for("profile"))
 
 
 @app.route("/expenses/<int:expense_id>/delete", methods=["POST"])
