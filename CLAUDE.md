@@ -35,8 +35,11 @@ pip install -r requirements.txt
 ### Database layer
 `database/db.py` — students implement three functions here:
 - `get_db()` — returns a SQLite connection (`expense_tracker.db`) with `row_factory` and foreign keys enabled
-- `init_db()` — creates tables with `CREATE TABLE IF NOT EXISTS`
+- `init_db()` — creates tables with `CREATE TABLE IF NOT EXISTS`, then adds any missing columns via `_add_column_if_missing()` so existing databases migrate in place
 - `seed_db()` — inserts sample rows for development
+
+Tables: `users`, `expenses` (with a nullable `event_id`), `events` (name, optional `start_date`/`end_date`/`budget`).
+Read queries live in `database/queries.py`; the expense queries take keyword-only `event_id` / `exclude_events` filters.
 
 The database file (`expense_tracker.db`) is gitignored.
 
@@ -58,6 +61,9 @@ Jinja2 templates in `templates/`. All pages extend `base.html`, which provides t
 | `/expenses/add` | Step 7 |
 | `/expenses/<id>/edit` | Step 8 |
 | `/expenses/<id>/delete` | Step 9 |
+| `/events`, `/events/new`, `/events/<id>`, `/events/<id>/edit`, `/events/<id>/delete` | Step 10 |
+
+Phone/PWA work (production hosting, quick-add page, installable app, back-tap) is Steps 11–18 in `PHONE_PLAN.md`.
 
 ## Key conventions
 

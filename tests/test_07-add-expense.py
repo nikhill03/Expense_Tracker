@@ -52,9 +52,19 @@ def db_path(tmp_path):
             password_hash TEXT    NOT NULL,
             created_at    TEXT    DEFAULT (datetime('now'))
         );
+        CREATE TABLE IF NOT EXISTS events (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL REFERENCES users(id),
+            name       TEXT    NOT NULL,
+            start_date TEXT,
+            end_date   TEXT,
+            budget     REAL,
+            created_at TEXT    DEFAULT (datetime('now'))
+        );
         CREATE TABLE IF NOT EXISTS expenses (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id     INTEGER NOT NULL REFERENCES users(id),
+            event_id    INTEGER REFERENCES events(id),
             amount      REAL    NOT NULL,
             category    TEXT    NOT NULL,
             date        TEXT    NOT NULL,

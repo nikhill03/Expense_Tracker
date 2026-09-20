@@ -38,7 +38,12 @@
                     {% for e in expenses %}
                     <tr>
                         <td>{{ e.date }}</td>
-                        <td>{{ e.description }}</td>
+                        <td>
+                            {{ e.description }}
+                            {% if e.event_name %}
+                            <a href="{{ url_for('event_detail', event_id=e.event_id) }}" class="badge badge--event">{{ e.event_name }}</a>
+                            {% endif %}
+                        </td>
                         <td><span class="badge badge--{{ e.category | lower | replace(' ', '-') }}">{{ e.category }}</span></td>
                         <td class="amount-cell">{{ e.amount }}</td>
                         <td class="action-cell">
