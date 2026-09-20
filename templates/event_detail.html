@@ -1,117 +1,67 @@
 {% extends "base.html" %}
+{% from "_tx_rows.html" import tx_rows, category_meters %}
 
 {% block title %}{{ summary.name }} — Bahi-Khata{% endblock %}
+{% block description %}What {{ summary.name }} has cost so far.{% endblock %}
 
 {% block content %}
-<div class="profile-page">
+<div class="shell shell--wide pb-16 pt-7">
 
-    <section class="profile-header">
-        <div class="profile-info">
-            <p class="profile-meta"><a href="{{ url_for('events') }}" class="back-link">← All events</a></p>
-            <h1 class="profile-name">{{ summary.name }}</h1>
-            <p class="profile-meta">{{ summary.date_range }}</p>
+    <a href="{{ url_for('events') }}" class="link-quiet link-tap gap-1">
+        <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+        All events
+    </a>
+
+    <div class="mt-3 flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <h1 class="font-display text-2xl font-bold tracking-tight">{{ summary.name }}</h1>
+            <p class="mt-1 text-sm text-ink-3">{{ summary.date_range }}</p>
         </div>
-        <div class="event-actions">
-            <a href="{{ url_for('add_expense', event=event_id) }}" class="btn-primary">+ Add Expense</a>
-            <a href="{{ url_for('edit_event', event_id=event_id) }}" class="btn-action btn-action--edit">Edit</a>
-            <form method="post" action="{{ url_for('delete_event', event_id=event_id) }}" style="display:inline"
-                  onsubmit="return confirm('Delete this event? Its expenses are kept and simply lose the event tag.')">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn-action btn-action--delete">Delete</button>
+        <div class="flex shrink-0 items-center gap-2">
+            <a href="{{ url_for('add_expense', event=event_id) }}" class="btn btn-accent">Add expense</a>
+            <a href="{{ url_for('edit_event', event_id=event_id) }}" class="btn btn-quiet">Edit</a>
+            <form method="post" action="{{ url_for('delete_event', event_id=event_id) }}"
+                  data-confirm="Delete this event? Its expenses are kept and simply lose the event tag.">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-quiet">Delete</button>
             </form>
         </div>
+    </div>
+
+    <section class="mt-8">
+        <p class="text-tiny font-semibold text-ink-3">Spent on this event</p>
+        <p class="amount mt-1 text-hero text-ink">{{ summary.spent }}</p>
+        <div class="mt-3 h-0.5 w-16 rounded-full bg-lac"></div>
+
+        {% if summary.budget %}
+        <div class="meter mt-4 max-w-sm {% if summary.over_budget %}meter-over{% else %}meter-good{% endif %}">
+            <span style="width: {{ summary.pct_of_budget }}%"></span>
+        </div>
+        <p class="status mt-2 {% if summary.over_budget %}status-over{% else %}status-good{% endif %}">
+            {% if summary.over_budget %}
+                {{ summary.remaining }} over the {{ summary.budget }} budget
+            {% else %}
+                {{ summary.remaining }} left of {{ summary.budget }}
+            {% endif %}
+        </p>
+        {% else %}
+        <p class="mt-3 text-tiny text-ink-3">
+            {{ summary.expense_count }} expense{{ '' if summary.expense_count == 1 else 's' }}.
+            <a href="{{ url_for('edit_event', event_id=event_id) }}" class="link-quiet">Set a budget</a>
+        </p>
+        {% endif %}
     </section>
 
-    <div class="profile-stats">
-        <div class="stat-card">
-            <span class="stat-label">Spent</span>
-            <span class="stat-value">{{ summary.spent }}</span>
-        </div>
-        <div class="stat-card">
-            <span class="stat-label">Expenses</span>
-            <span class="stat-value">{{ summary.expense_count }}</span>
-        </div>
-        <div class="stat-card">
-            <span class="stat-label">{% if summary.over_budget %}Over budget{% else %}Budget left{% endif %}</span>
-            <span class="stat-value{% if summary.over_budget %} is-over{% endif %}">
-                {{ summary.remaining if summary.budget else '—' }}
-            </span>
-        </div>
-    </div>
+    <div class="mt-10 grid gap-10 lg:grid-cols-[1.4fr_1fr] lg:items-start lg:gap-12">
+        <section>
+            <h2 class="section-title">Expenses</h2>
+            {{ tx_rows(transactions, 'Nothing logged for this event yet.', show_event=False) }}
+        </section>
 
-    {% if summary.budget %}
-    <div class="profile-card">
-        <div class="cat-bar-track">
-            <div class="cat-bar {% if summary.over_budget %}bar--over{% else %}bar--budget{% endif %}"
-                 style="width: {{ summary.pct_of_budget }}%"></div>
-        </div>
-        <p class="event-budget-note{% if summary.over_budget %} is-over{% endif %}">
-            {{ summary.spent }} of {{ summary.budget }} budget
-        </p>
-    </div>
-    {% endif %}
-
-    <div class="profile-lower">
-
-        <div class="profile-card">
-            <h2 class="card-title">Expenses in this event</h2>
-            <div class="profile-table-wrap">
-                <table class="profile-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Description</th>
-                            <th>Category</th>
-                            <th class="amount-cell">Amount</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for tx in transactions %}
-                        <tr>
-                            <td>{{ tx.date }}</td>
-                            <td>{{ tx.description }}</td>
-                            <td><span class="badge badge--{{ tx.category | lower | replace(' ', '-') }}">{{ tx.category }}</span></td>
-                            <td class="amount-cell">{{ tx.amount }}</td>
-                            <td class="action-cell">
-                                <a href="{{ url_for('edit_expense', expense_id=tx.id) }}" class="btn-action btn-action--edit">Edit</a>
-                                <form method="post" action="{{ url_for('delete_expense', expense_id=tx.id) }}" style="display:inline" onsubmit="return confirm('Delete this expense?')">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn-action btn-action--delete">Delete</button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="5" class="table-empty">Nothing logged for this event yet.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="profile-card">
-            <h2 class="card-title">By Category</h2>
-            <div class="cat-body">
-                {% if categories %}
-                    {% for cat in categories %}
-                    <div class="cat-item">
-                        <div class="cat-item-header">
-                            <span class="cat-name">{{ cat.name }}</span>
-                            <span class="cat-amount">{{ cat.amount }}</span>
-                        </div>
-                        <div class="cat-bar-track">
-                            <div class="cat-bar bar--{{ cat.name | lower | replace(' ', '-') }}" style="width: {{ cat.pct }}%"></div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <p class="table-empty">No spending in this event yet.</p>
-                {% endif %}
-            </div>
-        </div>
-
+        <section>
+            <h2 class="section-title">Where it went</h2>
+            {{ category_meters(categories, 'No spending in this event yet.') }}
+        </section>
     </div>
 
 </div>

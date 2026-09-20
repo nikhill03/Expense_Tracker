@@ -336,14 +336,14 @@ class TestBudgetStatus:
 class TestDashboardBudgets:
     def test_prompt_when_no_budgets(self, client):
         body = client.get("/profile").get_data(as_text=True)
-        assert "Set a monthly budget" in body
+        assert "Set a budget" in body
 
     def test_block_appears_once_budgets_exist(self, client, db_path, user_id):
         _set_budget(db_path, user_id, "Food", 6000.0)
         _spend(db_path, user_id, 1500.0, "Food")
 
         body = client.get("/profile").get_data(as_text=True)
-        assert "Budgets —" in body
+        assert "Budgets ·" in body
         assert "safe to spend" in body
         assert "₹1,500.00 of ₹6,000.00" in body
 
@@ -353,4 +353,4 @@ class TestDashboardBudgets:
 
         body = client.get("/profile").get_data(as_text=True)
         assert "over budget" in body
-        assert "bar--over" in body
+        assert "meter-over" in body

@@ -1,0 +1,105 @@
+{#- The quick-add form.
+
+    One definition, two hosts:
+      host='sheet' — inside the popover in base.html, reachable from any page
+      host='page'  — the standalone /quick screen a back-tap or share opens
+
+    Everything is sized for a thumb: the amount is the largest type in the app,
+    categories are chips rather than a <select>, and the date reads as one line
+    because it is almost always today — but one tap opens the calendar.
+
+    `event_id` is the event whose page the sheet was opened on, so adding an
+    expense from an event defaults to that event. Attaching is always optional.
+-#}
+
+{% macro quick_form(categories, events, today, host='page', values=None, error=None, source=None, event_id=None, earliest=None) %}
+{% set v = values or {} %}
+<form method="post" action="{{ url_for('quick_add') }}"
+      class="px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-1"
+      data-quick-form>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if host == 'sheet' %}
+    {#- Return the user to the page they opened the sheet from. -#}
+    <input type="hidden" name="next" value="{{ request.full_path | trim('?') }}">
+    {% endif %}
+
+    {% if error %}
+    <p class="notice notice-error mb-4" role="alert">
+        <svg viewBox="0 0 20 20" class="mt-px h-4 w-4 shrink-0" fill="currentColor" aria-hidden="true"><path d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 4a1 1 0 0 1 1 1v4a1 1 0 1 1-2 0V7a1 1 0 0 1 1-1zm0 9.2a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4z"/></svg>
+        {{ error }}
+    </p>
+    {% endif %}
+
+    <div class="mb-5">
+        <label for="q-amount-{{ host }}" class="field-label">
+            {% if source %}Amount from your {{ source }}{% else %}Amount{% endif %}
+        </label>
+        <div class="flex items-baseline gap-2">
+            <span class="font-display text-4xl font-semibold text-ink-3" aria-hidden="true">₹</span>
+            <input type="number" id="q-amount-{{ host }}" name="amount" class="amount-input"
+                   inputmode="decimal" step="0.01" min="0.01" required
+                   placeholder="0" value="{{ v.get('amount', '') }}"
+                   {% if host == 'page' %}autofocus{% endif %}
+                   data-quick-amount>
+        </div>
+        <div class="mt-2 h-px bg-rule"></div>
+    </div>
+
+    <fieldset class="mb-5">
+        <legend class="field-label">Category</legend>
+        <div class="flex flex-wrap gap-2">
+            {% for cat in categories %}
+            <label class="chip">
+                <input type="radio" name="category" value="{{ cat }}" required
+                       {% if v.get('category') == cat %}checked{% endif %}>
+                {{ cat }}
+            </label>
+            {% endfor %}
+        </div>
+    </fieldset>
+
+    <div class="mb-5">
+        <label for="q-remark-{{ host }}" class="field-label">Remark</label>
+        <input type="text" id="q-remark-{{ host }}" name="description" class="field"
+               maxlength="255" value="{{ v.get('description', '') }}"
+               placeholder="What was it for?" autocomplete="off">
+    </div>
+
+    {#- Shown only when there is something to pick. A redisplayed form keeps what
+        was posted — including a deliberate "no event" — and only a fresh form
+        falls back to the event whose page we are on. -#}
+    {% if events %}
+    {% set selected_event = v.get('event_id') if 'event_id' in v else event_id %}
+    <div class="mb-5">
+        <label for="q-event-{{ host }}" class="field-label">Event <span class="font-normal text-ink-3">(optional)</span></label>
+        <select id="q-event-{{ host }}" name="event_id" class="field">
+            <option value="">Not part of an event</option>
+            {% for event in events %}
+            <option value="{{ event.id }}" {% if selected_event == event.id %}selected{% endif %}>{{ event.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+
+    {#- It is almost always today, so the row is a sentence rather than a field.
+        The real date input lies transparently on top: one tap lands on the
+        native control and the phone's calendar opens, with no script in the
+        way. The wrapping <label> gives the input its accessible name, and the
+        visible words are part of that name (WCAG 2.5.3) rather than replaced
+        by it. The text is rendered server-side too, so a browser with JS
+        blocked never sees the row claim "today" above a different date. -#}
+    <label class="date-row mb-5" for="q-date-{{ host }}">
+        <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 3v3m8-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></svg>
+        <span class="sr-only">Date of the expense.</span>
+        <span data-quick-datelabel>{{ date_label(v.get('date') or today, today) }}</span>
+        <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 shrink-0 opacity-60" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+
+        <input type="date" id="q-date-{{ host }}" name="date" required
+               value="{{ v.get('date') or today }}"
+               {% if earliest %}min="{{ earliest }}"{% endif %} max="{{ today }}"
+               data-quick-date>
+    </label>
+
+    <button type="submit" class="btn btn-accent btn-block" data-quick-submit>Save expense</button>
+</form>
+{% endmacro %}

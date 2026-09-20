@@ -1,170 +1,174 @@
 {% extends "base.html" %}
 
-{% block title %}Bahi-Khata — Track Every Rupee{% endblock %}
-
-{% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
-{% endblock %}
+{% block title %}Bahi-Khata — your ledger, in two taps{% endblock %}
+{% block description %}A debit message lands, you double-tap your phone, and the amount is already filled in. Free expense tracking built for Indian bank alerts.{% endblock %}
 
 {% block content %}
 
-<section class="lp-hero">
-    <div class="lp-hero-inner">
+<section class="shell shell--wide grid gap-12 pb-16 pt-12 lg:grid-cols-[1fr_auto] lg:items-center lg:gap-16 lg:pt-20">
 
-        <div class="lp-badge">
-            <span class="lp-badge-dot"></span>
-            Free to use · No credit card needed
-        </div>
-
-        <h1 class="lp-title">
-            Track every rupee.<br>
-            <span class="lp-title-accent">Know where it goes.</span>
+    <div class="max-w-[34rem]">
+        <h1 class="font-display text-[clamp(2.25rem,7vw,3.5rem)] font-bold leading-[1.02] tracking-[-0.03em]">
+            Your bank already told you. Bahi-Khata just writes it down.
         </h1>
 
-        <p class="lp-subtitle">
-            Bahi-Khata helps you log expenses, spot patterns, and stay<br>
-            on budget — without the spreadsheet headache.
+        <p class="mt-5 max-w-[46ch] text-lg leading-relaxed text-ink-2">
+            A debit message lands, you double-tap the back of your phone, and the amount is
+            already in the box. Pick a category, save, done.
         </p>
 
-        <div class="lp-actions">
-            <a href="{{ url_for('register') }}" class="lp-btn-dark">Create free account</a>
-            <a href="#" class="lp-btn-dark" id="js-how-it-works">See how it works</a>
+        <div class="mt-8 flex flex-wrap items-center gap-3">
+            <a href="{{ url_for('register') }}" class="btn btn-accent">Open your ledger</a>
+            <a href="{{ url_for('login') }}" class="btn btn-quiet">Sign in</a>
         </div>
 
-        <div class="lp-browser">
-            <div class="lp-browser-bar">
-                <span class="lp-dot lp-dot-red"></span>
-                <span class="lp-dot lp-dot-yellow"></span>
-                <span class="lp-dot lp-dot-green"></span>
+        <p class="mt-4 text-tiny text-ink-3">Free. No card, no ads, no one else reading your spending.</p>
+    </div>
+
+    {# The hero is the product's whole thesis, running. Tap the message and the
+       sheet rises with the amount already read out of it. #}
+    <div class="justify-self-center" data-demo>
+        <div class="relative h-[34rem] w-[17.5rem] overflow-hidden rounded-[2.25rem] border border-rule bg-sunken shadow-[0_24px_60px_-20px_rgb(24_24_40_/_0.28)]">
+
+            <div class="flex h-9 items-center justify-center bg-ink/5 text-micro font-semibold text-ink-3">9:41</div>
+
+            <div class="px-3.5 pt-3">
+                <button type="button" data-demo-trigger
+                        class="w-full rounded-2xl border border-rule bg-surface p-3 text-left transition-transform active:scale-[0.98]">
+                    <p class="flex items-center gap-1.5 text-micro font-bold text-ink-3">
+                        <span class="grid h-4 w-4 place-items-center rounded bg-ink text-[9px] text-paper" aria-hidden="true">B</span>
+                        BANK ALERT · now
+                    </p>
+                    <p class="mt-1.5 text-tiny leading-snug text-ink-2">
+                        Rs.340.00 debited from A/c XX4417 on 20-09-26 to SWIGGY via UPI. Not you? Call 1800-11-2211.
+                    </p>
+                    <p class="mt-2 text-micro font-semibold text-lac-ink" data-demo-hint>Double-tap to log it →</p>
+                </button>
             </div>
-            <div class="lp-browser-body">
-                <div class="lp-stats">
-                    <div class="lp-stat-card">
-                        <div class="lp-stat-label">This month</div>
-                        <div class="lp-stat-value">₹18,240</div>
-                        <div class="lp-stat-sub lp-sub-danger">+12% vs last</div>
+
+            <div class="pointer-events-none absolute inset-x-0 bottom-0 top-0" aria-hidden="true">
+                <div data-demo-scrim class="absolute inset-0 bg-ink/40 opacity-0 backdrop-blur-[2px] transition-opacity duration-400"></div>
+
+                <div data-demo-sheet
+                     class="glass absolute inset-x-0 bottom-0 translate-y-full rounded-t-[1.5rem] border-t border-rule px-4 pb-5 pt-2 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
+                    <div class="mx-auto h-1 w-9 rounded-full bg-ink-3/40"></div>
+
+                    <p class="mt-3 inline-flex items-center gap-1 rounded-full bg-lac-wash px-2 py-0.5 text-[10px] font-bold text-lac-ink">
+                        Read from your UPI alert
+                    </p>
+
+                    <p class="mt-2.5 text-micro font-semibold text-ink-3">Amount</p>
+                    <p class="amount text-[2.75rem] leading-none tracking-[-0.04em] text-ink">₹340</p>
+                    <div class="mt-2 h-px bg-rule"></div>
+
+                    <p class="mt-3.5 text-micro font-semibold text-ink-3">Category</p>
+                    <div class="mt-1.5 flex flex-wrap gap-1.5">
+                        {% for cat, on in [('Food', True), ('Transport', False), ('Bills', False), ('Shopping', False)] %}
+                        <span class="rounded-full border px-2.5 py-1 text-[11px] font-medium
+                                     {% if on %}border-ink bg-ink text-paper{% else %}border-rule text-ink-3{% endif %}">{{ cat }}</span>
+                        {% endfor %}
                     </div>
-                    <div class="lp-stat-card">
-                        <div class="lp-stat-label">Budget left</div>
-                        <div class="lp-stat-value">₹6,760</div>
-                        <div class="lp-stat-sub lp-sub-success">43% remaining</div>
-                    </div>
-                    <div class="lp-stat-card">
-                        <div class="lp-stat-label">Transactions</div>
-                        <div class="lp-stat-value lp-stat-sans">34</div>
-                        <div class="lp-stat-sub">this month</div>
-                    </div>
-                </div>
-                <div class="lp-bars">
-                    <div class="lp-bar-row">
-                        <span class="lp-bar-cat">Food</span>
-                        <div class="lp-bar-track">
-                            <div class="lp-bar lp-bar-orange" style="width: 74%"></div>
-                        </div>
-                    </div>
-                    <div class="lp-bar-row">
-                        <span class="lp-bar-cat">Travel</span>
-                        <div class="lp-bar-track">
-                            <div class="lp-bar lp-bar-blue" style="width: 52%"></div>
-                        </div>
-                    </div>
-                    <div class="lp-bar-row">
-                        <span class="lp-bar-cat">Bills</span>
-                        <div class="lp-bar-track">
-                            <div class="lp-bar lp-bar-purple" style="width: 40%"></div>
-                        </div>
-                    </div>
+
+                    <p class="mt-3.5 rounded-xl border border-rule bg-surface px-3 py-2 text-tiny text-ink-2">Swiggy — dinner</p>
+
+                    <p data-demo-save class="mt-4 rounded-xl bg-lac py-2.5 text-center text-sm font-bold text-white transition-colors">Save ₹340</p>
                 </div>
             </div>
         </div>
 
+        <p class="mt-3 text-center text-micro text-ink-3">A real debit message, and what happens next.</p>
+    </div>
+
+</section>
+
+{# Rules, not cards — the same structure the app itself uses. #}
+<section class="shell shell--wide py-6">
+    <div class="ruled border-t border-rule">
+        <div class="grid gap-1 py-6 sm:grid-cols-[14rem_1fr] sm:gap-8">
+            <h2 class="font-display text-lg font-semibold tracking-tight">It reads the message</h2>
+            <p class="max-w-[58ch] text-ink-2">
+                Share a bank SMS to Bahi-Khata, or let an automation open it for you, and the
+                amount comes across already filled in. Nothing is saved until you tap save.
+            </p>
+        </div>
+        <div class="grid gap-1 py-6 sm:grid-cols-[14rem_1fr] sm:gap-8">
+            <h2 class="font-display text-lg font-semibold tracking-tight">It tells you what's left</h2>
+            <p class="max-w-[58ch] text-ink-2">
+                Set a monthly limit per category and the dashboard answers the only question that
+                matters mid-month: how much can I still spend today.
+            </p>
+        </div>
+        <div class="grid gap-1 py-6 sm:grid-cols-[14rem_1fr] sm:gap-8">
+            <h2 class="font-display text-lg font-semibold tracking-tight">It handles the big weeks</h2>
+            <p class="max-w-[58ch] text-ink-2">
+                A wedding, Diwali, a trip to Goa — group those expenses into an event with its own
+                budget, and keep them out of your ordinary monthly picture.
+            </p>
+        </div>
     </div>
 </section>
 
-<section class="features">
-    <div class="features-inner">
-        <div class="feature-card">
-            <div class="feature-icon">₹</div>
-            <h3 class="feature-title">Log expenses instantly</h3>
-            <p class="feature-body">Add any expense in seconds. Category, amount, date, description — all in one simple form.</p>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon">◎</div>
-            <h3 class="feature-title">Understand your patterns</h3>
-            <p class="feature-body">See exactly where your money goes with category breakdowns and monthly summaries.</p>
-        </div>
-        <div class="feature-card">
-            <div class="feature-icon">◷</div>
-            <h3 class="feature-title">Filter by time period</h3>
-            <p class="feature-body">View your spending for any date range — last week, last month, or a custom period.</p>
-        </div>
-    </div>
+<section class="shell max-w-lg! py-16 text-center">
+    <h2 class="font-display text-[clamp(1.75rem,4vw,2.25rem)] font-bold tracking-tight">Start with today's spending</h2>
+    <p class="mt-3 text-ink-2">One expense is enough to begin. The picture fills itself in.</p>
+    <a href="{{ url_for('register') }}" class="btn btn-accent mt-7">Open your ledger</a>
 </section>
-
-<section class="cta-section">
-    <div class="cta-inner">
-        <h2 class="cta-title">Ready to take control?</h2>
-        <p class="cta-body">Join thousands of people who track their expenses with Bahi-Khata.</p>
-        <a href="{{ url_for('register') }}" class="btn-primary">Create free account</a>
-    </div>
-</section>
-
-<!-- How it works modal -->
-<div class="lp-modal-overlay" id="js-modal-overlay" aria-hidden="true">
-    <div class="lp-modal" role="dialog" aria-label="How Bahi-Khata works">
-        <button class="lp-modal-close" id="js-modal-close" aria-label="Close">&#x2715;</button>
-        <div class="lp-modal-video">
-            <iframe
-                id="js-modal-iframe"
-                data-src="https://www.youtube.com/embed/dQw4w9WgXcQ"
-                src=""
-                title="How Bahi-Khata works"
-                frameborder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowfullscreen>
-            </iframe>
-        </div>
-    </div>
-</div>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
 (function () {
-    var overlay  = document.getElementById('js-modal-overlay');
-    var iframe   = document.getElementById('js-modal-iframe');
-    var closeBtn = document.getElementById('js-modal-close');
-    var trigger  = document.getElementById('js-how-it-works');
+    var demo    = document.querySelector('[data-demo]');
+    if (!demo) return;
 
-    function openModal() {
-        iframe.src = iframe.dataset.src;
-        overlay.classList.add('is-open');
-        overlay.setAttribute('aria-hidden', 'false');
-        document.body.style.overflow = 'hidden';
+    var trigger = demo.querySelector('[data-demo-trigger]');
+    var sheet   = demo.querySelector('[data-demo-sheet]');
+    var scrim   = demo.querySelector('[data-demo-scrim]');
+    var hint    = demo.querySelector('[data-demo-hint]');
+    var save    = demo.querySelector('[data-demo-save]');
+    var open    = false;
+    var played  = false;
+
+    function show() {
+        open = true;
+        sheet.classList.remove('translate-y-full');
+        scrim.classList.replace('opacity-0', 'opacity-100');
+        hint.textContent = 'Tap again to close';
     }
 
-    function closeModal() {
-        iframe.src = '';
-        overlay.classList.remove('is-open');
-        overlay.setAttribute('aria-hidden', 'true');
-        document.body.style.overflow = '';
+    function hide() {
+        open = false;
+        sheet.classList.add('translate-y-full');
+        scrim.classList.replace('opacity-100', 'opacity-0');
+        hint.textContent = 'Double-tap to log it →';
+        save.textContent = 'Save ₹340';
+        save.classList.remove('bg-good');
     }
 
-    trigger.addEventListener('click', function (e) {
-        e.preventDefault();
-        openModal();
+    trigger.addEventListener('click', function () {
+        open ? hide() : show();
+        if (!open) return;
+        // One beat later, show what saving looks like.
+        setTimeout(function () {
+            if (!open) return;
+            save.textContent = 'Saved to Food ✓';
+            save.classList.add('bg-good');
+        }, 1600);
     });
 
-    closeBtn.addEventListener('click', closeModal);
+    // Play the sequence once when it scrolls into view, so the idea lands
+    // without the visitor having to guess that the card is tappable.
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { show(); return; }
 
-    overlay.addEventListener('click', function (e) {
-        if (e.target === overlay) closeModal();
-    });
-
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && overlay.classList.contains('is-open')) closeModal();
-    });
+    new IntersectionObserver(function (entries, obs) {
+        entries.forEach(function (entry) {
+            if (!entry.isIntersecting || played) return;
+            played = true;
+            obs.disconnect();
+            setTimeout(function () { trigger.click(); }, 900);
+        });
+    }, { threshold: 0.5 }).observe(demo);
 }());
 </script>
 {% endblock %}

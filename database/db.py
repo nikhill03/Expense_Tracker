@@ -1,8 +1,9 @@
 import os
 import sqlite3
-from datetime import datetime
 
 from werkzeug.security import generate_password_hash
+
+import timeutil
 
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "expense_tracker.db")
 
@@ -144,7 +145,7 @@ def backup_db(keep=7):
     )
     os.makedirs(backup_dir, exist_ok=True)
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = timeutil.today().isoformat()
     target = os.path.join(backup_dir, f"bahikhata-{today}.db")
     if os.path.exists(target):
         return None  # already taken today

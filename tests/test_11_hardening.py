@@ -350,9 +350,14 @@ class TestQueryCount:
     ):
         """A handful of queries, and the count must stay flat.
 
-        The dashboard looks up the user, aggregates spending once and fetches
-        the transaction list. What matters is that the number never grows with
-        the number of expenses or categories on the page.
+        The dashboard looks up the user, aggregates spending once, fetches the
+        transaction list and checks the budgets. The fifth is the quick-add
+        sheet's event picker, which base.html renders on every signed-in page —
+        a deliberate id+name lookup (queries.get_event_options), not the
+        aggregate-heavy get_events_for_user.
+
+        What matters is that the number never grows with the number of expenses,
+        categories or events on the page.
         """
         import database.queries as q_module
 
@@ -381,13 +386,62 @@ class TestQueryCount:
         counter["queries"] = 0
         resp = patched_app.get("/profile?preset=all")
         assert resp.status_code == 200
-        assert counter["queries"] <= 4, f"dashboard ran {counter['queries']} queries"
+        assert counter["queries"] <= 5, f"dashboard ran {counter['queries']} queries"
 
         # Ten times the data must not mean more queries.
         _add_expenses(db_path, user_id, 200, category="Transport")
         counter["queries"] = 0
         patched_app.get("/profile?preset=all")
-        assert counter["queries"] <= 4, f"dashboard ran {counter['queries']} queries"
+        assert counter["queries"] <= 5, f"dashboard ran {counter['queries']} queries"
+
+    def test_pages_with_their_own_event_list_do_not_query_it_twice(
+        self, patched_app, db_path, user_id, monkeypatch
+    ):
+        """The quick-add sheet is on every page, and some pages have a picker of
+        their own. Both read the same per-request cache, so the event list is
+        fetched once per request however many pickers are on the page.
+        """
+        import database.queries as q_module
+
+        conn = _make_conn(db_path)
+        for name in ("Goa Trip", "Diwali", "Wedding"):
+            conn.execute(
+                "INSERT INTO events (user_id, name) VALUES (?, ?)", (user_id, name)
+            )
+        conn.commit()
+        conn.close()
+
+        event_queries = {"n": 0}
+
+        class CountingConn:
+            def __init__(self, conn):
+                self._conn = conn
+
+            def execute(self, sql, *args, **kwargs):
+                if "FROM events" in sql:
+                    event_queries["n"] += 1
+                return self._conn.execute(sql, *args, **kwargs)
+
+            def __getattr__(self, name):
+                return getattr(self._conn, name)
+
+        monkeypatch.setattr(
+            q_module, "get_db", lambda: CountingConn(_make_conn(db_path))
+        )
+
+        with patched_app.session_transaction() as sess:
+            sess["user_id"] = user_id
+            sess["user_name"] = "Test User"
+
+        # Two pickers on the page: the form's own, and the sheet's.
+        event_queries["n"] = 0
+        assert patched_app.get("/expenses/add").status_code == 200
+        assert event_queries["n"] == 1, f"ran {event_queries['n']} event queries"
+
+        # /events already holds the full list and primes the cache for the sheet.
+        event_queries["n"] = 0
+        assert patched_app.get("/events").status_code == 200
+        assert event_queries["n"] == 1, f"ran {event_queries['n']} event queries"
 
 
 # ------------------------------------------------------------------ #

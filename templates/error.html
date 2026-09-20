@@ -3,24 +3,15 @@
 {% block title %}{{ code }} — Bahi-Khata{% endblock %}
 
 {% block content %}
-<section class="auth-section">
-  <div class="auth-container">
-
-    <div class="auth-header">
-      <p class="error-code">{{ code }}</p>
-      <h1 class="auth-title">{{ title }}</h1>
-      {% if message %}
-      <p class="auth-subtitle">{{ message }}</p>
-      {% endif %}
-    </div>
-
-    <div class="auth-card error-card">
-      <a href="{{ url_for('profile') if session.get('user_id') else url_for('landing') }}"
-         class="btn-submit">
-        {{ 'Back to dashboard' if session.get('user_id') else 'Back to home' }}
-      </a>
-    </div>
-
-  </div>
-</section>
+<div class="shell max-w-md! py-20 text-center">
+    <p class="amount text-hero text-ink-3/40">{{ code }}</p>
+    <h1 class="mt-2 font-display text-2xl font-bold tracking-tight">{{ title }}</h1>
+    {% if message %}
+    <p class="mx-auto mt-2 max-w-sm text-sm text-ink-3">{{ message }}</p>
+    {% endif %}
+    <a href="{{ url_for('profile') if session.get('user_id') else url_for('landing') }}"
+       class="btn btn-primary mt-7">
+        {{ 'Back to your dashboard' if session.get('user_id') else 'Back to home' }}
+    </a>
+</div>
 {% endblock %}

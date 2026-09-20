@@ -1,6 +1,7 @@
 from calendar import monthrange
-from datetime import date, datetime
+from datetime import datetime
 
+import timeutil
 from database.db import get_db
 
 
@@ -339,6 +340,31 @@ def _budget_view(spent, budget):
     }
 
 
+def get_event_options(user_id, limit=100):
+    """Just id and name, for the quick-add picker.
+
+    Kept separate from get_events_for_user, which LEFT JOINs and aggregates the
+    whole expenses table — far more work than a <select> needs, and this one
+    runs on every signed-in page. Same ordering, so the picker and the events
+    list agree on what "most recent" means.
+
+    Capped because these options are inlined into every signed-in page's HTML,
+    and a <select> stops being usable long before 100 entries anyway.
+    """
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT id, name FROM events WHERE user_id = ?"
+            " ORDER BY COALESCE(start_date, created_at) DESC, id DESC"
+            " LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    return [{"id": row["id"], "name": row["name"]} for row in rows]
+
+
 def get_events_for_user(user_id):
     conn = get_db()
     try:
@@ -432,7 +458,7 @@ def get_month_budget_status(user_id, today=None):
     Returns None when no budgets are set, so the dashboard can leave the
     section out entirely rather than showing an empty card.
     """
-    today = today or date.today()
+    today = today or timeutil.today()
     first_day = today.replace(day=1)
     days_in_month = monthrange(today.year, today.month)[1]
     last_day = today.replace(day=days_in_month)

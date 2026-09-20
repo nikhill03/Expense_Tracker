@@ -1,61 +1,48 @@
 {% extends "base.html" %}
+{% from "_expense_form.html" import form_page %}
 {% set is_edit = mode == 'edit' %}
 
-{% block title %}{{ 'Edit Event' if is_edit else 'New Event' }} — Bahi-Khata{% endblock %}
+{% block title %}{{ 'Edit event' if is_edit else 'New event' }} — Bahi-Khata{% endblock %}
 
 {% block content %}
-<section class="auth-section">
-  <div class="auth-container">
+{% call form_page(
+    'Edit event' if is_edit else 'New event',
+    url_for('event_detail', event_id=event_id) if is_edit else url_for('events'),
+    'Back to event' if is_edit else 'All events',
+    error) %}
 
-    <div class="auth-header">
-      <h1 class="auth-title">{{ 'Edit Event' if is_edit else 'New Event' }}</h1>
-      <p class="auth-subtitle">
-        {% if is_edit %}
-        <a href="{{ url_for('event_detail', event_id=event_id) }}" style="color: var(--accent)">← Back to Event</a>
-        {% else %}
-        <a href="{{ url_for('events') }}" style="color: var(--accent)">← Back to Events</a>
-        {% endif %}
-      </p>
+<form method="post" action="{{ url_for('edit_event', event_id=event_id) if is_edit else url_for('new_event') }}" class="mt-6">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div>
+        <label for="name" class="field-label">Name</label>
+        <input type="text" id="name" name="name" class="field" maxlength="100" required
+               value="{{ name or '' }}" placeholder="Goa trip, Diwali, cousin's wedding" autofocus>
     </div>
 
-    <div class="auth-card">
-      {% if error %}
-      <div class="auth-error">{{ error }}</div>
-      {% endif %}
-
-      <form method="post" action="{{ url_for('edit_event', event_id=event_id) if is_edit else url_for('new_event') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-        <div class="form-group">
-          <label for="name">Event name</label>
-          <input type="text" id="name" name="name" class="form-input"
-                 maxlength="100" required value="{{ name or '' }}"
-                 placeholder="e.g. Goa Trip, Diwali">
+    <div class="mt-5 flex gap-3">
+        <div class="flex-1">
+            <label for="start_date" class="field-label">Starts <span class="font-normal text-ink-3">(optional)</span></label>
+            <input type="date" id="start_date" name="start_date" class="field" value="{{ start_date or '' }}">
         </div>
-
-        <div class="form-group">
-          <label for="start_date">Start date <span style="color: var(--ink-faint); font-weight: 400">(optional)</span></label>
-          <input type="date" id="start_date" name="start_date" class="form-input"
-                 value="{{ start_date or '' }}">
+        <div class="flex-1">
+            <label for="end_date" class="field-label">Ends <span class="font-normal text-ink-3">(optional)</span></label>
+            <input type="date" id="end_date" name="end_date" class="field" value="{{ end_date or '' }}">
         </div>
-
-        <div class="form-group">
-          <label for="end_date">End date <span style="color: var(--ink-faint); font-weight: 400">(optional)</span></label>
-          <input type="date" id="end_date" name="end_date" class="form-input"
-                 value="{{ end_date or '' }}">
-        </div>
-
-        <div class="form-group">
-          <label for="budget">Budget (₹) <span style="color: var(--ink-faint); font-weight: 400">(optional)</span></label>
-          <input type="number" id="budget" name="budget" class="form-input"
-                 step="0.01" min="0.01" value="{{ budget_raw or '' }}"
-                 placeholder="e.g. 15000">
-        </div>
-
-        <button type="submit" class="btn-submit">{{ 'Save Changes' if is_edit else 'Create Event' }}</button>
-      </form>
     </div>
 
-  </div>
-</section>
+    <div class="mt-5">
+        <label for="budget" class="field-label">Budget <span class="font-normal text-ink-3">(optional)</span></label>
+        <div class="relative">
+            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" aria-hidden="true">₹</span>
+            <input type="number" id="budget" name="budget" class="field pl-7"
+                   inputmode="decimal" step="0.01" min="0.01"
+                   value="{{ budget_raw or '' }}" placeholder="15000">
+        </div>
+        <p class="mt-1.5 text-tiny text-ink-3">Set one and the event page will show what's left.</p>
+    </div>
+
+    <button type="submit" class="btn btn-accent btn-block mt-7">{{ 'Save changes' if is_edit else 'Create event' }}</button>
+</form>
+{% endcall %}
 {% endblock %}

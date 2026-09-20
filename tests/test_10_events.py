@@ -24,6 +24,8 @@ import sqlite3
 import pytest
 from werkzeug.security import generate_password_hash
 
+import timeutil
+
 
 # ------------------------------------------------------------------ #
 # Helpers                                                              #
@@ -35,6 +37,12 @@ def _make_conn(path):
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
+
+
+# An expense date has to be one the app will accept, and _parse_expense_form now
+# refuses the future. Taken from the app's own clock, so this file cannot rot the
+# way the hardcoded "2026-09-21" did on the day it became tomorrow.
+_EXPENSE_DAY = timeutil.today().isoformat()
 
 
 def _login(client, user_id, name="Test User"):
@@ -63,7 +71,7 @@ def _add_expense(
     user_id,
     amount,
     category="Food",
-    date="2026-09-21",
+    date=_EXPENSE_DAY,
     description="Test expense",
     event_id=None,
 ):
@@ -415,7 +423,7 @@ class TestExpenseEventLink:
             data={
                 "amount": "300",
                 "category": "Food",
-                "date": "2026-09-21",
+                "date": _EXPENSE_DAY,
                 "description": "Tagged expense",
                 "event_id": str(event_id),
             },
@@ -435,7 +443,7 @@ class TestExpenseEventLink:
             data={
                 "amount": "300",
                 "category": "Food",
-                "date": "2026-09-21",
+                "date": _EXPENSE_DAY,
                 "description": "Plain expense",
                 "event_id": "",
             },
@@ -459,7 +467,7 @@ class TestExpenseEventLink:
             data={
                 "amount": "300",
                 "category": "Food",
-                "date": "2026-09-21",
+                "date": _EXPENSE_DAY,
                 "description": "Sneaky expense",
                 "event_id": str(event_id),
             },
@@ -482,7 +490,7 @@ class TestExpenseEventLink:
         common = {
             "amount": "400",
             "category": "Food",
-            "date": "2026-09-21",
+            "date": _EXPENSE_DAY,
             "description": "Movable",
         }
         client_owner.post(
