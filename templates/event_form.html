@@ -24,6 +24,7 @@
       {% endif %}
 
       <form method="post" action="{{ url_for('edit_event', event_id=event_id) if is_edit else url_for('new_event') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <div class="form-group">
           <label for="name">Event name</label>

@@ -1,11 +1,20 @@
+import os
 import sqlite3
+from datetime import datetime
+
 from werkzeug.security import generate_password_hash
+
+DATABASE_PATH = os.environ.get("DATABASE_PATH", "expense_tracker.db")
 
 
 def get_db():
-    conn = sqlite3.connect("expense_tracker.db")
+    conn = sqlite3.connect(DATABASE_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # Wait instead of failing when another request holds the write lock.
+    conn.execute("PRAGMA busy_timeout = 5000")
+    # Safe to relax under WAL: a crash can lose the last commit, never the file.
+    conn.execute("PRAGMA synchronous = NORMAL")
     return conn
 
 
@@ -48,6 +57,12 @@ def init_db():
             description TEXT,
             created_at  TEXT    DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS login_attempts (
+            email        TEXT PRIMARY KEY,
+            failures     INTEGER NOT NULL DEFAULT 0,
+            locked_until TEXT
+        );
     """
     )
 
@@ -56,7 +71,18 @@ def init_db():
         conn, "expenses", "event_id", "INTEGER REFERENCES events(id)"
     )
 
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_expenses_event ON expenses(event_id)")
+    # Readers stop blocking the writer. Persists in the database file.
+    conn.execute("PRAGMA journal_mode = WAL")
+
+    # Every dashboard and list query filters on user_id plus a date range, so
+    # that pair carries the indexes. Event pages filter user_id and event_id.
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_expenses_user_date ON expenses(user_id, date)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_expenses_user_event ON expenses(user_id, event_id)"
+    )
+    conn.execute("DROP INDEX IF EXISTS idx_expenses_event")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id)")
 
     conn.commit()
@@ -96,3 +122,36 @@ def seed_db():
 
     conn.commit()
     conn.close()
+
+
+def backup_db(keep=7):
+    """Write a consistent daily snapshot next to the database; keep the newest few.
+
+    A volume protects against a redeploy, not against a bad DELETE, so this
+    keeps a rolling set of copies. VACUUM INTO is safe on a live database.
+    """
+    backup_dir = os.path.join(
+        os.path.dirname(os.path.abspath(DATABASE_PATH)), "backups"
+    )
+    os.makedirs(backup_dir, exist_ok=True)
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    target = os.path.join(backup_dir, f"bahikhata-{today}.db")
+    if os.path.exists(target):
+        return None  # already taken today
+
+    conn = get_db()
+    try:
+        conn.execute("VACUUM INTO ?", (target,))
+    finally:
+        conn.close()
+
+    snapshots = sorted(
+        f
+        for f in os.listdir(backup_dir)
+        if f.startswith("bahikhata-") and f.endswith(".db")
+    )
+    for stale in snapshots[:-keep]:
+        os.remove(os.path.join(backup_dir, stale))
+
+    return target

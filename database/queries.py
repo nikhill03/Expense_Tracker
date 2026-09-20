@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from database.db import get_db
 
 
@@ -91,6 +92,61 @@ def get_summary_stats(
     }
 
 
+def _summary_from_rows(rows):
+    """Build the three dashboard stat cards from one GROUP BY category pass."""
+    total = sum(row["total"] for row in rows)
+    count = sum(row["cnt"] for row in rows)
+    top_category = rows[0]["category"] if rows else "—"
+    return {
+        "total_spent": f"₹{total:,.2f}",
+        "transaction_count": count,
+        "top_category": top_category,
+    }
+
+
+def _breakdown_from_rows(rows):
+    """Build the category bars from the same pass. Percentages sum to 100."""
+    if not rows:
+        return []
+
+    grand_total = sum(row["total"] for row in rows)
+    items = [
+        {
+            "name": row["category"],
+            "amount": f"₹{row['total']:,.2f}",
+            "pct": int(row["total"] / grand_total * 100),
+        }
+        for row in rows
+    ]
+    items[0]["pct"] += 100 - sum(item["pct"] for item in items)
+    return items
+
+
+def get_dashboard(user_id, from_date=None, to_date=None, *, exclude_events=False):
+    """Stats and category breakdown in a single query.
+
+    The per-category aggregate already contains the total, the transaction
+    count and the top category, so the dashboard does not need separate
+    queries for them.
+    """
+    date_clauses, date_params = _date_where(from_date, to_date)
+    event_clauses, event_params = _event_where(None, exclude_events)
+    where = " AND ".join(["user_id = ?"] + date_clauses + event_clauses)
+    params = [user_id] + date_params + event_params
+
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT category, SUM(amount) AS total, COUNT(*) AS cnt FROM expenses"
+            f" WHERE {where} GROUP BY category ORDER BY total DESC",
+            params,
+        ).fetchall()
+    finally:
+        conn.close()
+
+    return _summary_from_rows(rows), _breakdown_from_rows(rows)
+
+
 def get_recent_transactions(
     user_id,
     limit=10,
@@ -158,23 +214,7 @@ def get_category_breakdown(
     finally:
         conn.close()
 
-    if not rows:
-        return []
-
-    grand_total = sum(row["total"] for row in rows)
-    items = [
-        {
-            "name": row["category"],
-            "amount": f"₹{row['total']:,.2f}",
-            "pct": int(row["total"] / grand_total * 100),
-        }
-        for row in rows
-    ]
-
-    diff = 100 - sum(item["pct"] for item in items)
-    items[0]["pct"] += diff
-
-    return items
+    return _breakdown_from_rows(rows)
 
 
 def get_expense_by_id(expense_id):
@@ -190,27 +230,44 @@ def get_expense_by_id(expense_id):
 
 
 def get_filtered_expenses(
-    user_id, from_date, to_date, *, event_id=None, exclude_events=False
+    user_id,
+    from_date,
+    to_date,
+    *,
+    event_id=None,
+    exclude_events=False,
+    page=1,
+    per_page=50,
 ):
     event_clauses, event_params = _event_where(event_id, exclude_events, prefix="e.")
     where = " AND ".join(
         ["e.user_id = ?", "e.date >= ?", "e.date <= ?"] + event_clauses
     )
+    params = [user_id, from_date, to_date] + event_params
+
+    page = max(1, page)
+    per_page = max(1, per_page)
 
     conn = get_db()
     try:
+        # Total and count cover the whole range, not just the page on screen.
+        agg = conn.execute(
+            "SELECT COALESCE(SUM(e.amount), 0) AS total, COUNT(*) AS cnt"
+            f" FROM expenses e WHERE {where}",
+            params,
+        ).fetchone()
+
         rows = conn.execute(
             "SELECT e.id, e.date, e.description, e.category, e.amount,"
             " e.event_id, ev.name AS event_name"
             " FROM expenses e LEFT JOIN events ev ON ev.id = e.event_id"
             f" WHERE {where}"
-            " ORDER BY e.date DESC, e.id DESC",
-            [user_id, from_date, to_date] + event_params,
+            " ORDER BY e.date DESC, e.id DESC LIMIT ? OFFSET ?",
+            params + [per_page, (page - 1) * per_page],
         ).fetchall()
     finally:
         conn.close()
 
-    total = sum(r["amount"] for r in rows)
     expense_list = [
         {
             "id": r["id"],
@@ -223,7 +280,21 @@ def get_filtered_expenses(
         }
         for r in rows
     ]
-    return expense_list, f"₹{total:,.2f}"
+
+    count = agg["cnt"]
+    pages = max(1, -(-count // per_page))  # ceiling division
+    pagination = {
+        "page": page,
+        "per_page": per_page,
+        "pages": pages,
+        "count": count,
+        "has_prev": page > 1,
+        "has_next": page < pages,
+        "first_index": 0 if count == 0 else (page - 1) * per_page + 1,
+        "last_index": min(page * per_page, count),
+    }
+
+    return expense_list, f"₹{agg['total']:,.2f}", pagination
 
 
 # ------------------------------------------------------------------ #

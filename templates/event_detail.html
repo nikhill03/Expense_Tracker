@@ -16,6 +16,7 @@
             <a href="{{ url_for('edit_event', event_id=event_id) }}" class="btn-action btn-action--edit">Edit</a>
             <form method="post" action="{{ url_for('delete_event', event_id=event_id) }}" style="display:inline"
                   onsubmit="return confirm('Delete this event? Its expenses are kept and simply lose the event tag.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn-action btn-action--delete">Delete</button>
             </form>
         </div>
@@ -75,6 +76,7 @@
                             <td class="action-cell">
                                 <a href="{{ url_for('edit_expense', expense_id=tx.id) }}" class="btn-action btn-action--edit">Edit</a>
                                 <form method="post" action="{{ url_for('delete_expense', expense_id=tx.id) }}" style="display:inline" onsubmit="return confirm('Delete this expense?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn-action btn-action--delete">Delete</button>
                                 </form>
                             </td>

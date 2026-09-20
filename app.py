@@ -1,12 +1,15 @@
+import logging
 import os
+import secrets
 import sqlite3
-from datetime import date, timedelta
-from flask import Flask, render_template, request, redirect, url_for, session, abort
+import time
+from datetime import date, datetime, timedelta
+from flask import Flask, render_template, request, redirect, url_for, session, abort, g
 from werkzeug.security import generate_password_hash, check_password_hash
-from database.db import get_db, init_db, seed_db
+from database.db import get_db, init_db, seed_db, backup_db
 from database.queries import (
     get_user_by_id,
-    get_summary_stats,
+    get_dashboard,
     get_recent_transactions,
     get_category_breakdown,
     get_filtered_expenses,
@@ -18,6 +21,14 @@ from database.queries import (
 
 app = Flask(__name__)
 app.secret_key = "dev-secret-change-me"
+
+PROFILE_TRANSACTION_LIMIT = 10
+EXPENSES_PER_PAGE = 50
+SLOW_REQUEST_MS = 200
+MAX_LOGIN_FAILURES = 5
+LOGIN_LOCKOUT_MINUTES = 15
+
+logging.basicConfig(level=logging.INFO)
 
 EXPENSE_CATEGORIES = [
     "Food",
@@ -142,9 +153,197 @@ def _owned_event_or_abort(event_id):
     return event
 
 
+# ------------------------------------------------------------------ #
+# Cross-cutting: CSRF, timing, errors, health                         #
+# ------------------------------------------------------------------ #
+
+CSRF_EXEMPT_ENDPOINTS = set()
+
+
+def _csrf_enabled():
+    """On by default; off under TESTING unless a test turns it back on.
+
+    Existing route tests post forms directly, so blanket-enforcing the token
+    would fail them for the wrong reason. tests/test_11_hardening.py sets
+    CSRF_ENABLED = True to cover the real behaviour.
+    """
+    configured = app.config.get("CSRF_ENABLED")
+    if configured is None:
+        return not app.config.get("TESTING", False)
+    return configured
+
+
+def csrf_token():
+    """Per-session token, created on first use."""
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_urlsafe(32)
+    return session["csrf_token"]
+
+
+app.jinja_env.globals["csrf_token"] = csrf_token
+
+
+_last_backup_day = None
+
+
+def _daily_backup():
+    """Take one snapshot per day, on the first request that notices the date."""
+    global _last_backup_day
+    today = date.today().isoformat()
+    if _last_backup_day == today:
+        return
+    _last_backup_day = today
+    try:
+        backup_db()
+    except (OSError, sqlite3.Error):
+        app.logger.exception("database backup failed")
+
+
+@app.before_request
+def _guard_and_time_request():
+    g.started_at = time.perf_counter()
+    _daily_backup()
+
+    if (
+        _csrf_enabled()
+        and request.method == "POST"
+        and request.endpoint not in CSRF_EXEMPT_ENDPOINTS
+    ):
+        sent = request.form.get("csrf_token", "")
+        expected = session.get("csrf_token")
+        if not expected or not secrets.compare_digest(sent, expected):
+            abort(
+                400,
+                "Your session expired or the form was tampered with. Please try again.",
+            )
+
+
+@app.after_request
+def _log_slow_request(response):
+    started = getattr(g, "started_at", None)
+    if started is not None:
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        if elapsed_ms > SLOW_REQUEST_MS:
+            app.logger.warning(
+                "slow request %s %s %.0fms", request.method, request.path, elapsed_ms
+            )
+    return response
+
+
+@app.errorhandler(400)
+@app.errorhandler(403)
+@app.errorhandler(404)
+def _handle_client_error(error):
+    return (
+        render_template(
+            "error.html",
+            code=error.code,
+            title={
+                400: "That didn't go through",
+                403: "Not your expense",
+                404: "Page not found",
+            }.get(error.code, "Something went wrong"),
+            message=getattr(error, "description", ""),
+        ),
+        error.code,
+    )
+
+
+@app.errorhandler(500)
+def _handle_server_error(error):
+    app.logger.exception("unhandled error: %s", error)
+    return (
+        render_template(
+            "error.html",
+            code=500,
+            title="Something broke on our side",
+            message="The problem has been logged. Try again in a moment.",
+        ),
+        500,
+    )
+
+
+@app.route("/healthz")
+def healthz():
+    """Liveness probe: the app is up and the database answers."""
+    try:
+        conn = get_db()
+        try:
+            conn.execute("SELECT 1").fetchone()
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        app.logger.error("health check failed: %s", exc)
+        return {"status": "error"}, 503
+    return {"status": "ok"}, 200
+
+
+# ------------------------------------------------------------------ #
+# Login throttling                                                    #
+# ------------------------------------------------------------------ #
+
+
+def _login_lock_remaining(email):
+    """Minutes left on a lockout for this email, or 0 if it can try again."""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT locked_until FROM login_attempts WHERE email = ?", (email,)
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if row is None or not row["locked_until"]:
+        return 0
+
+    try:
+        locked_until = datetime.fromisoformat(row["locked_until"])
+    except (ValueError, TypeError):
+        return 0
+
+    remaining = (locked_until - datetime.now()).total_seconds()
+    return max(0, int(remaining // 60) + 1) if remaining > 0 else 0
+
+
+def _record_login_failure(email):
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT failures FROM login_attempts WHERE email = ?", (email,)
+        ).fetchone()
+        failures = (row["failures"] if row else 0) + 1
+        locked_until = None
+        if failures >= MAX_LOGIN_FAILURES:
+            locked_until = (
+                datetime.now() + timedelta(minutes=LOGIN_LOCKOUT_MINUTES)
+            ).isoformat(timespec="seconds")
+            failures = 0  # start a fresh count after the lockout
+        conn.execute(
+            "INSERT INTO login_attempts (email, failures, locked_until) VALUES (?, ?, ?)"
+            " ON CONFLICT(email) DO UPDATE SET failures = ?, locked_until = ?",
+            (email, failures, locked_until, failures, locked_until),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _clear_login_failures(email):
+    conn = get_db()
+    try:
+        conn.execute("DELETE FROM login_attempts WHERE email = ?", (email,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 with app.app_context():
-    init_db()
-    seed_db()
+    try:
+        init_db()
+        seed_db()
+    except sqlite3.Error:
+        # A failed migration should be loud in the logs, not a dead app.
+        app.logger.exception("database initialisation failed")
 
 
 # ------------------------------------------------------------------ #
@@ -216,15 +415,26 @@ def login():
             "login.html", error="All fields are required", email=email
         )
 
+    locked_minutes = _login_lock_remaining(email)
+    if locked_minutes:
+        return render_template(
+            "login.html",
+            error=f"Too many failed attempts. Try again in {locked_minutes} minute"
+            f"{'' if locked_minutes == 1 else 's'}.",
+            email=email,
+        )
+
     conn = get_db()
     user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
     conn.close()
 
     if not user or not check_password_hash(user["password_hash"], password):
+        _record_login_failure(email)
         return render_template(
             "login.html", error="Invalid email or password", email=email
         )
 
+    _clear_login_failures(email)
     session.clear()
     session["user_id"] = user["id"]
     session["user_name"] = user["name"]
@@ -288,18 +498,16 @@ def profile():
     exclude_events = request.args.get("events") == "exclude"
 
     user = get_user_by_id(user_id)
-    stats = get_summary_stats(
+    # One aggregate query covers the stat cards and the category bars.
+    stats, categories = get_dashboard(
         user_id, from_date, to_date, exclude_events=exclude_events
     )
     transactions = get_recent_transactions(
         user_id,
-        limit=None,
+        limit=PROFILE_TRANSACTION_LIMIT,
         from_date=from_date,
         to_date=to_date,
         exclude_events=exclude_events,
-    )
-    categories = get_category_breakdown(
-        user_id, from_date, to_date, exclude_events=exclude_events
     )
 
     return render_template(
@@ -310,6 +518,7 @@ def profile():
         categories=categories,
         active_preset=active_preset,
         exclude_events=exclude_events,
+        transaction_limit=PROFILE_TRANSACTION_LIMIT,
         form_from=from_date if active_preset == "custom" else "",
         form_to=to_date if active_preset == "custom" else "",
     )
@@ -327,12 +536,20 @@ def expenses():
     from_date = request.args.get("from", "").strip() or default_from
     to_date = request.args.get("to", "").strip() or default_to
 
-    expense_list, total = get_filtered_expenses(session["user_id"], from_date, to_date)
+    page = request.args.get("page", default=1, type=int) or 1
+    expense_list, total, pagination = get_filtered_expenses(
+        session["user_id"],
+        from_date,
+        to_date,
+        page=page,
+        per_page=EXPENSES_PER_PAGE,
+    )
 
     return render_template(
         "expenses.html",
         expenses=expense_list,
         total=total,
+        pagination=pagination,
         from_date=from_date,
         to_date=to_date,
     )
@@ -549,7 +766,9 @@ def event_detail(event_id):
         "event_detail.html",
         event_id=event_id,
         summary=get_event_summary(event_id),
-        transactions=get_recent_transactions(user_id, limit=None, event_id=event_id),
+        transactions=get_recent_transactions(
+            user_id, limit=EXPENSES_PER_PAGE, event_id=event_id
+        ),
         categories=get_category_breakdown(user_id, event_id=event_id),
     )
 
