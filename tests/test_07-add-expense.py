@@ -52,6 +52,14 @@ def db_path(tmp_path):
             password_hash TEXT    NOT NULL,
             created_at    TEXT    DEFAULT (datetime('now'))
         );
+        CREATE TABLE IF NOT EXISTS budgets (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id        INTEGER NOT NULL REFERENCES users(id),
+            category       TEXT    NOT NULL,
+            monthly_amount REAL    NOT NULL,
+            updated_at     TEXT    DEFAULT (datetime('now')),
+            UNIQUE(user_id, category)
+        );
         CREATE TABLE IF NOT EXISTS login_attempts (
             email        TEXT PRIMARY KEY,
             failures     INTEGER NOT NULL DEFAULT 0,

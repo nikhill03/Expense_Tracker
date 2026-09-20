@@ -1,4 +1,5 @@
-from datetime import datetime
+from calendar import monthrange
+from datetime import date, datetime
 
 from database.db import get_db
 
@@ -404,3 +405,84 @@ def get_event_summary(event_id):
     }
     summary.update(_budget_view(row["spent"], row["budget"]))
     return summary
+
+
+# ------------------------------------------------------------------ #
+# Monthly budgets                                                     #
+# ------------------------------------------------------------------ #
+
+
+def get_budgets(user_id):
+    """Category -> monthly amount, for the budget form."""
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT category, monthly_amount FROM budgets WHERE user_id = ?",
+            (user_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    return {row["category"]: row["monthly_amount"] for row in rows}
+
+
+def get_month_budget_status(user_id, today=None):
+    """How this month's spending sits against the user's monthly budgets.
+
+    Returns None when no budgets are set, so the dashboard can leave the
+    section out entirely rather than showing an empty card.
+    """
+    today = today or date.today()
+    first_day = today.replace(day=1)
+    days_in_month = monthrange(today.year, today.month)[1]
+    last_day = today.replace(day=days_in_month)
+
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT b.category, b.monthly_amount,"
+            " COALESCE(SUM(e.amount), 0) AS spent"
+            " FROM budgets b"
+            " LEFT JOIN expenses e"
+            "   ON e.user_id = b.user_id AND e.category = b.category"
+            "  AND e.date >= ? AND e.date <= ?"
+            " WHERE b.user_id = ?"
+            " GROUP BY b.id"
+            " ORDER BY b.monthly_amount DESC",
+            (first_day.isoformat(), last_day.isoformat(), user_id),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    if not rows:
+        return None
+
+    categories = []
+    for row in rows:
+        entry = {
+            "name": row["category"],
+            "spent": f"₹{row['spent']:,.2f}",
+            "spent_value": row["spent"],
+            "budget_value": row["monthly_amount"],
+            # Amber before the limit, red past it — the warning is the point.
+            "nearly_spent": 0.8 <= row["spent"] / row["monthly_amount"] < 1,
+        }
+        entry.update(_budget_view(row["spent"], row["monthly_amount"]))
+        categories.append(entry)
+
+    budget_total = sum(c["budget_value"] for c in categories)
+    spent_total = sum(c["spent_value"] for c in categories)
+    left = budget_total - spent_total
+    days_left = days_in_month - today.day + 1
+
+    return {
+        "month_label": today.strftime("%B %Y"),
+        "categories": categories,
+        "budget_total": f"₹{budget_total:,.2f}",
+        "spent_total": f"₹{spent_total:,.2f}",
+        "left_total": f"₹{abs(left):,.2f}",
+        "over_total": left < 0,
+        "days_left": days_left,
+        "safe_per_day": f"₹{max(left, 0) / days_left:,.0f}",
+        "pct_used": min(int(spent_total / budget_total * 100), 100) if budget_total else 0,
+    }

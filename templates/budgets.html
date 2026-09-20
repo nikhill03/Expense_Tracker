@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Monthly Budgets — Bahi-Khata{% endblock %}
+
+{% block content %}
+<div class="profile-page">
+
+    <section class="profile-header">
+        <div class="profile-info">
+            <h1 class="profile-name">Monthly Budgets</h1>
+            <p class="profile-meta">How much you mean to spend per category each month</p>
+        </div>
+    </section>
+
+    {% if status %}
+    <div class="profile-stats">
+        <div class="stat-card">
+            <span class="stat-label">Budgeted ({{ status.month_label }})</span>
+            <span class="stat-value">{{ status.budget_total }}</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Spent so far</span>
+            <span class="stat-value">{{ status.spent_total }}</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">{% if status.over_total %}Over by{% else %}Safe to spend{% endif %}</span>
+            <span class="stat-value{% if status.over_total %} is-over{% endif %}">
+                {% if status.over_total %}{{ status.left_total }}{% else %}{{ status.safe_per_day }}/day{% endif %}
+            </span>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="profile-card">
+        {% if error %}
+        <div class="auth-error">{{ error }}</div>
+        {% endif %}
+
+        <form method="post" action="{{ url_for('budgets') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <p class="budget-hint">Leave a category empty to stop budgeting it.</p>
+
+            {% for category in categories %}
+            <div class="budget-row">
+                <label for="budget_{{ category }}" class="budget-label">
+                    <span class="badge badge--{{ category | lower | replace(' ', '-') }}">{{ category }}</span>
+                </label>
+                <input type="number" id="budget_{{ category }}" name="budget_{{ category }}"
+                       class="form-input budget-input" step="0.01" min="0.01"
+                       placeholder="No budget"
+                       value="{{ budgets.get(category, '') or '' }}">
+            </div>
+            {% endfor %}
+
+            <button type="submit" class="btn-submit">Save Budgets</button>
+        </form>
+    </div>
+
+</div>
+{% endblock %}

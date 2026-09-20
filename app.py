@@ -17,6 +17,8 @@ from database.queries import (
     get_events_for_user,
     get_event_by_id,
     get_event_summary,
+    get_budgets,
+    get_month_budget_status,
 )
 
 app = Flask(__name__)
@@ -516,6 +518,7 @@ def profile():
         stats=stats,
         transactions=transactions,
         categories=categories,
+        budget_status=get_month_budget_status(user_id),
         active_preset=active_preset,
         exclude_events=exclude_events,
         transaction_limit=PROFILE_TRANSACTION_LIMIT,
@@ -842,6 +845,71 @@ def delete_event(event_id):
         conn.close()
 
     return redirect(url_for("events"))
+
+
+# ------------------------------------------------------------------ #
+# Monthly budgets                                                     #
+# ------------------------------------------------------------------ #
+
+
+@app.route("/budgets", methods=["GET", "POST"])
+def budgets():
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+
+    if request.method == "GET":
+        return render_template(
+            "budgets.html",
+            categories=EXPENSE_CATEGORIES,
+            budgets=get_budgets(user_id),
+            status=get_month_budget_status(user_id),
+        )
+
+    # One form carries every category: a value sets or updates that budget,
+    # a blank one removes it.
+    parsed = {}
+    for category in EXPENSE_CATEGORIES:
+        raw = request.form.get(f"budget_{category}", "").strip()
+        if not raw:
+            parsed[category] = None
+            continue
+        try:
+            amount = float(raw)
+            if amount <= 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            return render_template(
+                "budgets.html",
+                categories=EXPENSE_CATEGORIES,
+                budgets=get_budgets(user_id),
+                status=get_month_budget_status(user_id),
+                error=f"{category} budget must be a positive number, or left empty.",
+            )
+        parsed[category] = amount
+
+    conn = get_db()
+    try:
+        for category, amount in parsed.items():
+            if amount is None:
+                conn.execute(
+                    "DELETE FROM budgets WHERE user_id = ? AND category = ?",
+                    (user_id, category),
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO budgets (user_id, category, monthly_amount)"
+                    " VALUES (?, ?, ?)"
+                    " ON CONFLICT(user_id, category) DO UPDATE SET"
+                    " monthly_amount = ?, updated_at = datetime('now')",
+                    (user_id, category, amount, amount),
+                )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect(url_for("budgets"))
 
 
 if __name__ == "__main__":
