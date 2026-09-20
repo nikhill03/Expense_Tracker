@@ -15,19 +15,31 @@
         <a href="{{ url_for('add_expense') }}" class="btn-primary">+ Add Expense</a>
     </div>
 
+    {% set event_arg = '&events=exclude' if exclude_events else '' %}
     <div class="filter-bar">
         <div class="filter-presets">
-            <a href="{{ url_for('profile') }}?preset=all" class="preset-btn{% if active_preset == 'all' %} active{% endif %}">All Time</a>
-            <a href="{{ url_for('profile') }}?preset=this_month" class="preset-btn{% if active_preset == 'this_month' %} active{% endif %}">This Month</a>
-            <a href="{{ url_for('profile') }}?preset=last_3_months" class="preset-btn{% if active_preset == 'last_3_months' %} active{% endif %}">Last 3 Months</a>
-            <a href="{{ url_for('profile') }}?preset=last_6_months" class="preset-btn{% if active_preset == 'last_6_months' %} active{% endif %}">Last 6 Months</a>
+            <a href="{{ url_for('profile') }}?preset=all{{ event_arg }}" class="preset-btn{% if active_preset == 'all' %} active{% endif %}">All Time</a>
+            <a href="{{ url_for('profile') }}?preset=this_month{{ event_arg }}" class="preset-btn{% if active_preset == 'this_month' %} active{% endif %}">This Month</a>
+            <a href="{{ url_for('profile') }}?preset=last_3_months{{ event_arg }}" class="preset-btn{% if active_preset == 'last_3_months' %} active{% endif %}">Last 3 Months</a>
+            <a href="{{ url_for('profile') }}?preset=last_6_months{{ event_arg }}" class="preset-btn{% if active_preset == 'last_6_months' %} active{% endif %}">Last 6 Months</a>
         </div>
         <form method="get" class="filter-custom">
             <input type="date" name="from" value="{{ form_from }}">
             <span class="filter-to-label">to</span>
             <input type="date" name="to" value="{{ form_to }}">
+            {% if exclude_events %}<input type="hidden" name="events" value="exclude">{% endif %}
             <button type="submit" class="btn-apply">Apply</button>
         </form>
+    </div>
+
+    <div class="filter-events">
+        {% if exclude_events %}
+        <a href="{{ url_for('profile') }}?preset={{ active_preset }}{% if active_preset == 'custom' %}&from={{ form_from }}&to={{ form_to }}{% endif %}"
+           class="preset-btn active">Event spending hidden — show it</a>
+        {% else %}
+        <a href="{{ url_for('profile') }}?preset={{ active_preset }}{% if active_preset == 'custom' %}&from={{ form_from }}&to={{ form_to }}{% endif %}&events=exclude"
+           class="preset-btn">Exclude event spending</a>
+        {% endif %}
     </div>
 
     <div class="profile-stats">
@@ -63,7 +75,12 @@
                     {% for tx in transactions %}
                     <tr>
                         <td>{{ tx.date }}</td>
-                        <td>{{ tx.description }}</td>
+                        <td>
+                            {{ tx.description }}
+                            {% if tx.event_name %}
+                            <a href="{{ url_for('event_detail', event_id=tx.event_id) }}" class="badge badge--event">{{ tx.event_name }}</a>
+                            {% endif %}
+                        </td>
                         <td><span class="badge badge--{{ tx.category | lower | replace(' ', '-') }}">{{ tx.category }}</span></td>
                         <td class="amount-cell">{{ tx.amount }}</td>
                         <td class="action-cell">

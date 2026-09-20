@@ -11,6 +11,9 @@ from database.queries import (
     get_category_breakdown,
     get_filtered_expenses,
     get_expense_by_id,
+    get_events_for_user,
+    get_event_by_id,
+    get_event_summary,
 )
 
 app = Flask(__name__)
@@ -63,6 +66,80 @@ def _parse_expense_form(form):
         return fields, None, "Description must be 255 characters or fewer."
 
     return fields, amount, None
+
+
+def _parse_event_form(form):
+    """Parse and validate event form fields. Returns (fields, values, error)."""
+    name = form.get("name", "").strip()
+    start_date = form.get("start_date", "").strip() or None
+    end_date = form.get("end_date", "").strip() or None
+    budget_raw = form.get("budget", "").strip()
+
+    fields = {
+        "name": name,
+        "start_date": start_date,
+        "end_date": end_date,
+        "budget_raw": budget_raw,
+    }
+
+    if not name:
+        return fields, None, "Event name is required."
+
+    if len(name) > 100:
+        return fields, None, "Event name must be 100 characters or fewer."
+
+    for value in (start_date, end_date):
+        if value:
+            try:
+                date.fromisoformat(value)
+            except ValueError:
+                return fields, None, "Dates must be valid dates."
+
+    if start_date and end_date and end_date < start_date:
+        return fields, None, "End date cannot be before the start date."
+
+    budget = None
+    if budget_raw:
+        try:
+            budget = float(budget_raw)
+            if budget <= 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            return fields, None, "Budget must be a positive number."
+
+    values = {
+        "name": name,
+        "start_date": start_date,
+        "end_date": end_date,
+        "budget": budget,
+    }
+    return fields, values, None
+
+
+def _resolve_event_id(form, user_id):
+    """Return the posted event id, but only if that event belongs to this user."""
+    raw = form.get("event_id", "").strip()
+    if not raw:
+        return None
+    try:
+        event_id = int(raw)
+    except ValueError:
+        return None
+
+    event = get_event_by_id(event_id)
+    if event is None or event["user_id"] != user_id:
+        return None
+    return event_id
+
+
+def _owned_event_or_abort(event_id):
+    """Fetch an event, 404 if it doesn't exist, 403 if it isn't this user's."""
+    event = get_event_by_id(event_id)
+    if event is None:
+        abort(404)
+    if event["user_id"] != session["user_id"]:
+        abort(403)
+    return event
 
 
 with app.app_context():
@@ -208,12 +285,22 @@ def profile():
         from_date = None
         to_date = None
 
+    exclude_events = request.args.get("events") == "exclude"
+
     user = get_user_by_id(user_id)
-    stats = get_summary_stats(user_id, from_date, to_date)
-    transactions = get_recent_transactions(
-        user_id, limit=None, from_date=from_date, to_date=to_date
+    stats = get_summary_stats(
+        user_id, from_date, to_date, exclude_events=exclude_events
     )
-    categories = get_category_breakdown(user_id, from_date, to_date)
+    transactions = get_recent_transactions(
+        user_id,
+        limit=None,
+        from_date=from_date,
+        to_date=to_date,
+        exclude_events=exclude_events,
+    )
+    categories = get_category_breakdown(
+        user_id, from_date, to_date, exclude_events=exclude_events
+    )
 
     return render_template(
         "profile.html",
@@ -222,6 +309,7 @@ def profile():
         transactions=transactions,
         categories=categories,
         active_preset=active_preset,
+        exclude_events=exclude_events,
         form_from=from_date if active_preset == "custom" else "",
         form_to=to_date if active_preset == "custom" else "",
     )
@@ -256,19 +344,27 @@ def add_expense():
         return redirect(url_for("login"))
 
     today = date.today().isoformat()
+    events = get_events_for_user(session["user_id"])
 
     if request.method == "GET":
         return render_template(
-            "add_expense.html", categories=EXPENSE_CATEGORIES, today=today
+            "add_expense.html",
+            categories=EXPENSE_CATEGORIES,
+            today=today,
+            events=events,
+            event_id=request.args.get("event", type=int),
         )
 
     fields, amount, error = _parse_expense_form(request.form)
+    event_id = _resolve_event_id(request.form, session["user_id"])
 
     def redisplay(msg):
         return render_template(
             "add_expense.html",
             categories=EXPENSE_CATEGORIES,
             today=today,
+            events=events,
+            event_id=event_id,
             error=msg,
             amount=fields["amount_raw"],
             category=fields["category"],
@@ -282,9 +378,11 @@ def add_expense():
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO expenses (user_id, amount, category, date, description) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO expenses (user_id, event_id, amount, category, date, description)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
             (
                 session["user_id"],
+                event_id,
                 amount,
                 fields["category"],
                 fields["expense_date"],
@@ -295,6 +393,8 @@ def add_expense():
     finally:
         conn.close()
 
+    if event_id:
+        return redirect(url_for("event_detail", event_id=event_id))
     return redirect(url_for("profile"))
 
 
@@ -310,20 +410,27 @@ def edit_expense(expense_id):
     if expense["user_id"] != session["user_id"]:
         abort(403)
 
+    events = get_events_for_user(session["user_id"])
+
     if request.method == "GET":
         return render_template(
             "edit_expense.html",
             expense=expense,
             categories=EXPENSE_CATEGORIES,
+            events=events,
+            event_id=expense["event_id"],
         )
 
     fields, amount, error = _parse_expense_form(request.form)
+    event_id = _resolve_event_id(request.form, session["user_id"])
 
     def redisplay(msg):
         return render_template(
             "edit_expense.html",
             expense=expense,
             categories=EXPENSE_CATEGORIES,
+            events=events,
+            event_id=event_id,
             error=msg,
             amount=fields["amount_raw"],
             category=fields["category"],
@@ -337,12 +444,14 @@ def edit_expense(expense_id):
     conn = get_db()
     try:
         conn.execute(
-            "UPDATE expenses SET amount=?, category=?, date=?, description=? WHERE id=? AND user_id=?",
+            "UPDATE expenses SET amount=?, category=?, date=?, description=?, event_id=?"
+            " WHERE id=? AND user_id=?",
             (
                 amount,
                 fields["category"],
                 fields["expense_date"],
                 fields["description"],
+                event_id,
                 expense_id,
                 session["user_id"],
             ),
@@ -377,6 +486,143 @@ def delete_expense(expense_id):
         conn.close()
 
     return redirect(url_for("profile"))
+
+
+# ------------------------------------------------------------------ #
+# Events                                                              #
+# ------------------------------------------------------------------ #
+
+
+@app.route("/events")
+def events():
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    return render_template(
+        "events.html", events=get_events_for_user(session["user_id"])
+    )
+
+
+@app.route("/events/new", methods=["GET", "POST"])
+def new_event():
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    if request.method == "GET":
+        return render_template("event_form.html", mode="new")
+
+    fields, values, error = _parse_event_form(request.form)
+
+    if error:
+        return render_template("event_form.html", mode="new", error=error, **fields)
+
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "INSERT INTO events (user_id, name, start_date, end_date, budget)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (
+                session["user_id"],
+                values["name"],
+                values["start_date"],
+                values["end_date"],
+                values["budget"],
+            ),
+        )
+        conn.commit()
+        event_id = cursor.lastrowid
+    finally:
+        conn.close()
+
+    return redirect(url_for("event_detail", event_id=event_id))
+
+
+@app.route("/events/<int:event_id>")
+def event_detail(event_id):
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    _owned_event_or_abort(event_id)
+    user_id = session["user_id"]
+
+    return render_template(
+        "event_detail.html",
+        event_id=event_id,
+        summary=get_event_summary(event_id),
+        transactions=get_recent_transactions(user_id, limit=None, event_id=event_id),
+        categories=get_category_breakdown(user_id, event_id=event_id),
+    )
+
+
+@app.route("/events/<int:event_id>/edit", methods=["GET", "POST"])
+def edit_event(event_id):
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    event = _owned_event_or_abort(event_id)
+
+    if request.method == "GET":
+        return render_template(
+            "event_form.html",
+            mode="edit",
+            event_id=event_id,
+            name=event["name"],
+            start_date=event["start_date"],
+            end_date=event["end_date"],
+            budget_raw="" if event["budget"] is None else event["budget"],
+        )
+
+    fields, values, error = _parse_event_form(request.form)
+
+    if error:
+        return render_template(
+            "event_form.html", mode="edit", event_id=event_id, error=error, **fields
+        )
+
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE events SET name=?, start_date=?, end_date=?, budget=?"
+            " WHERE id=? AND user_id=?",
+            (
+                values["name"],
+                values["start_date"],
+                values["end_date"],
+                values["budget"],
+                event_id,
+                session["user_id"],
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect(url_for("event_detail", event_id=event_id))
+
+
+@app.route("/events/<int:event_id>/delete", methods=["POST"])
+def delete_event(event_id):
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    _owned_event_or_abort(event_id)
+
+    conn = get_db()
+    try:
+        # Expenses outlive their event — they are only unlinked from it.
+        conn.execute(
+            "UPDATE expenses SET event_id = NULL WHERE event_id = ? AND user_id = ?",
+            (event_id, session["user_id"]),
+        )
+        conn.execute(
+            "DELETE FROM events WHERE id = ? AND user_id = ?",
+            (event_id, session["user_id"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect(url_for("events"))
 
 
 if __name__ == "__main__":

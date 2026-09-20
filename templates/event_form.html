@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% set is_edit = mode == 'edit' %}
+
+{% block title %}{{ 'Edit Event' if is_edit else 'New Event' }} — Bahi-Khata{% endblock %}
+
+{% block content %}
+<section class="auth-section">
+  <div class="auth-container">
+
+    <div class="auth-header">
+      <h1 class="auth-title">{{ 'Edit Event' if is_edit else 'New Event' }}</h1>
+      <p class="auth-subtitle">
+        {% if is_edit %}
+        <a href="{{ url_for('event_detail', event_id=event_id) }}" style="color: var(--accent)">← Back to Event</a>
+        {% else %}
+        <a href="{{ url_for('events') }}" style="color: var(--accent)">← Back to Events</a>
+        {% endif %}
+      </p>
+    </div>
+
+    <div class="auth-card">
+      {% if error %}
+      <div class="auth-error">{{ error }}</div>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('edit_event', event_id=event_id) if is_edit else url_for('new_event') }}">
+
+        <div class="form-group">
+          <label for="name">Event name</label>
+          <input type="text" id="name" name="name" class="form-input"
+                 maxlength="100" required value="{{ name or '' }}"
+                 placeholder="e.g. Goa Trip, Diwali">
+        </div>
+
+        <div class="form-group">
+          <label for="start_date">Start date <span style="color: var(--ink-faint); font-weight: 400">(optional)</span></label>
+          <input type="date" id="start_date" name="start_date" class="form-input"
+                 value="{{ start_date or '' }}">
+        </div>
+
+        <div class="form-group">
+          <label for="end_date">End date <span style="color: var(--ink-faint); font-weight: 400">(optional)</span></label>
+          <input type="date" id="end_date" name="end_date" class="form-input"
+                 value="{{ end_date or '' }}">
+        </div>
+
+        <div class="form-group">
+          <label for="budget">Budget (₹) <span style="color: var(--ink-faint); font-weight: 400">(optional)</span></label>
+          <input type="number" id="budget" name="budget" class="form-input"
+                 step="0.01" min="0.01" value="{{ budget_raw or '' }}"
+                 placeholder="e.g. 15000">
+        </div>
+
+        <button type="submit" class="btn-submit">{{ 'Save Changes' if is_edit else 'Create Event' }}</button>
+      </form>
+    </div>
+
+  </div>
+</section>
+{% endblock %}

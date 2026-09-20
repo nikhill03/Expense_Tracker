@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Events — Bahi-Khata{% endblock %}
+
+{% block content %}
+<div class="profile-page">
+
+    <section class="profile-header">
+        <div class="profile-info">
+            <h1 class="profile-name">Events</h1>
+            <p class="profile-meta">Group spending for a trip, festival or occasion</p>
+        </div>
+        <a href="{{ url_for('new_event') }}" class="btn-primary">+ New Event</a>
+    </section>
+
+    {% if events %}
+    <div class="event-grid">
+        {% for event in events %}
+        <a href="{{ url_for('event_detail', event_id=event.id) }}" class="event-card">
+            <div class="event-card-head">
+                <h2 class="event-name">{{ event.name }}</h2>
+                <span class="event-spent">{{ event.spent }}</span>
+            </div>
+            <p class="event-dates">{{ event.date_range }}</p>
+
+            {% if event.budget %}
+            <div class="cat-bar-track">
+                <div class="cat-bar {% if event.over_budget %}bar--over{% else %}bar--budget{% endif %}"
+                     style="width: {{ event.pct_of_budget }}%"></div>
+            </div>
+            <p class="event-budget-note{% if event.over_budget %} is-over{% endif %}">
+                {% if event.over_budget %}
+                    {{ event.remaining }} over the {{ event.budget }} budget
+                {% else %}
+                    {{ event.remaining }} left of {{ event.budget }}
+                {% endif %}
+            </p>
+            {% else %}
+            <p class="event-budget-note">No budget set</p>
+            {% endif %}
+
+            <p class="event-count">{{ event.expense_count }} expense{{ '' if event.expense_count == 1 else 's' }}</p>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="profile-card">
+        <p class="table-empty">
+            No events yet. Create one for your next trip or festival, then tag expenses to it.
+        </p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

@@ -43,6 +43,16 @@
         </div>
 
         <div class="form-group">
+          <label for="event_id">Event <span style="color: var(--ink-faint); font-weight: 400">(optional)</span></label>
+          <select id="event_id" name="event_id" class="form-input">
+            <option value="" {% if not event_id %}selected{% endif %}>No event</option>
+            {% for event in events %}
+            <option value="{{ event.id }}" {% if event_id == event.id %}selected{% endif %}>{{ event.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
           <label for="description">Description <span style="color: var(--ink-faint); font-weight: 400">(optional)</span></label>
           <input type="text" id="description" name="description" class="form-input"
                  maxlength="255" value="{{ description or '' }}"
