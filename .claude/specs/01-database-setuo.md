@@ -4,7 +4,7 @@
 
 Replace the stub in `database/db.py` with a working SQLite implementation.
 
-This step establishes the **data layer foundation** for the Spendly application.
+This step establishes the **data layer foundation** for the Bahi-Khata application.
 
 All future features (authentication, profile, expense tracking) depend on this being correctly implemented.
 
@@ -59,7 +59,7 @@ Nothing — this is the first step.
 
 ### A. `get_db()`
 
-- Opens connection to `spendly.db` (or `expense_tracker.db`) in project root
+- Opens connection to `expense_tracker.db` in project root
 - Sets:
   - `row_factory = sqlite3.Row`
   - `PRAGMA foreign_keys = ON`
@@ -81,7 +81,7 @@ Nothing — this is the first step.
   - If yes → return early (no duplication)
 - Inserts one demo user:
   - name: Demo User
-  - email: demo@spendly.com
+  - email: demo@bahikhata.com
   - password: demo123 (hashed using `werkzeug`)
 - Inserts **8 sample expenses**:
   - All linked to demo user

@@ -41,7 +41,7 @@ def _today_str():
 
 @pytest.fixture()
 def db_path(tmp_path):
-    """Create a fresh temporary SQLite DB with the Spendly schema."""
+    """Create a fresh temporary SQLite DB with the Bahi-Khata schema."""
     path = str(tmp_path / "test_add_expense.db")
     conn = _make_conn(path)
     conn.executescript("""

@@ -1,7 +1,7 @@
 # Spec: Registration
 
 ## Overview
-Implement the POST handler for `/register` so users can create a Spendly account. The GET route and `register.html` template already exist; this step wires up form processing: validate inputs, reject duplicate emails, hash the password with werkzeug, insert the new user into the `users` table, and redirect to `/login` on success. Error messages are passed to the template via the `error` variable (not Flask flash). A `SECRET_KEY` is added to the app so Flask sessions are available for future steps.
+Implement the POST handler for `/register` so users can create a Bahi-Khata account. The GET route and `register.html` template already exist; this step wires up form processing: validate inputs, reject duplicate emails, hash the password with werkzeug, insert the new user into the `users` table, and redirect to `/login` on success. Error messages are passed to the template via the `error` variable (not Flask flash). A `SECRET_KEY` is added to the app so Flask sessions are available for future steps.
 
 ## Depends on
 - Step 1 — Database setup (`users` table must exist, `get_db()` must work)

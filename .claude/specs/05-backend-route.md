@@ -98,7 +98,7 @@ File: `tests/test_backend_connection.py`
 
 - Returns 200
 - Response contains the seed user's name ("Demo User")
-- Response contains the seed user's email ("demo@spendly.com")
+- Response contains the seed user's email ("demo@bahikhata.com")
 - Response contains ₹ symbol
 - `total_spent` matches sum of all seed expenses (346.24)
 - `transaction_count` is 8
@@ -108,7 +108,7 @@ File: `tests/test_backend_connection.py`
 
 ## Definition of done
 
-- [ ] Logging in as the seed user (demo@spendly.com / demo123) shows "Demo User" and "demo@spendly.com" on the profile page — not the hardcoded strings
+- [ ] Logging in as the seed user (demo@bahikhata.com / demo123) shows "Demo User" and "demo@bahikhata.com" on the profile page — not the hardcoded strings
 - [ ] Total spent displayed on the profile page equals ₹346.24
 - [ ] Transaction count displayed is 8
 - [ ] Top category displayed is "Bills"

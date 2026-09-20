@@ -1,7 +1,7 @@
 # Spec: Delete Expense
 
 ## Overview
-Step 9 implements the delete expense route, completing the full CRUD lifecycle for expenses in Spendly. The stub at `POST /expenses/<id>/delete` already exists in `app.py` and the delete buttons are already rendered in both `expenses.html` and `profile.html`. This step replaces the stub with real logic: verify the expense exists, verify it belongs to the logged-in user, delete it from the database, and redirect back to the referring page.
+Step 9 implements the delete expense route, completing the full CRUD lifecycle for expenses in Bahi-Khata. The stub at `POST /expenses/<id>/delete` already exists in `app.py` and the delete buttons are already rendered in both `expenses.html` and `profile.html`. This step replaces the stub with real logic: verify the expense exists, verify it belongs to the logged-in user, delete it from the database, and redirect back to the referring page.
 
 ## Depends on
 - Step 5 (backend connection) — `get_db()` must work

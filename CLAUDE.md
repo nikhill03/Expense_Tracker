@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-**Spendly** is a Flask-based personal expense tracker web app targeting Indian users (currency: ₹). It is structured as a teaching project where students implement features step-by-step. The current state is a pre-auth scaffold: landing page, login/register stubs, and placeholder routes for the full CRUD flow.
+**Bahi-Khata** is a Flask-based personal expense tracker web app targeting Indian users (currency: ₹). It is structured as a teaching project where students implement features step-by-step. The current state is a pre-auth scaffold: landing page, login/register stubs, and placeholder routes for the full CRUD flow.
 
 ## Commands
 
@@ -64,4 +64,4 @@ Jinja2 templates in `templates/`. All pages extend `base.html`, which provides t
 - Placeholder routes return a plain string like `"Feature — coming in Step N"` until implemented.
 - SQLite is the only database; no ORM. Raw SQL via the `database/db.py` helpers.
 - No authentication middleware exists yet; session handling will be added in a later step.
-- The app name in UI is **Spendly**; the repo/Python module is `expense_tracker`.
+- The app name in UI is **Bahi-Khata**; the repo/Python module is `expense_tracker`.

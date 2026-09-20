@@ -1,5 +1,5 @@
 ---
-description: Writes and runs tests for a specific Spendly feature. Pass the spec name as argument e.g. /test-feature 05-backend-connection
+description: Writes and runs tests for a specific Bahi-Khata feature. Pass the spec name as argument e.g. /test-feature 05-backend-connection
 allowed-tools: Bash(python -m pytest)
 ---
 
@@ -35,7 +35,7 @@ following context:
   cases, auth guards, validation errors, and DB side
   effects.
 
-Wait for spendly-test-writer to fully complete and
+Wait for bahikhata-test-writer to fully complete and
 confirm the test file has been written before
 proceeding to Step 2.
 
@@ -43,7 +43,7 @@ proceeding to Step 2.
 
 ## Step 2: Run Tests
 
-Once spendly-test-writer has finished, invoke the
+Once bahikhata-test-writer has finished, invoke the
 **pytest-test-runner** subagent with the following
 context:
 
@@ -71,7 +71,7 @@ context:
 - Do NOT attempt to fix any code regardless of what
   the test results show
 - Do NOT run any tests beyond `tests/test_$ARGUMENTS.py`
-- If spendly-test-writer reports it could not write
+- If bahikhata-test-writer reports it could not write
   the test file, stop and report the reason — do NOT
   proceed to Step 2
 
@@ -91,7 +91,7 @@ summary:
 
 **Step 2 — Test Results**
 
-- Mirror the spendly-test-runner's structured report
+- Mirror the bahikhata-test-runner's structured report
 
 **Verdict**
 One of:

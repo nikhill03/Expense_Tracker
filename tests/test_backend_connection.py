@@ -134,10 +134,10 @@ def test_profile_unauthenticated(client):
 
 def test_profile_authenticated(client):
     # Log in as the seeded demo user
-    client.post("/login", data={"email": "demo@spendly.com", "password": "demo123"})
+    client.post("/login", data={"email": "demo@bahikhata.com", "password": "demo123"})
     resp = client.get("/profile")
     assert resp.status_code == 200
     body = resp.data.decode()
     assert "Demo User" in body
-    assert "demo@spendly.com" in body
+    assert "demo@bahikhata.com" in body
     assert "₹" in body

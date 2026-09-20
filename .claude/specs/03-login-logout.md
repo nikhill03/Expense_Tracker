@@ -1,7 +1,7 @@
 # Spec: Login and Logout
 
 ## Overview
-Implement the POST handler for `/login` so users can authenticate into Spendly, and replace the `/logout` placeholder with a working route that clears the session. On successful login, `user_id` and `user_name` are stored in Flask's session so subsequent steps can gate access to protected pages. The navbar in `base.html` is updated to reflect authentication state — showing a "Sign out" link when a session exists and the current "Sign in"/"Get started" links when it does not.
+Implement the POST handler for `/login` so users can authenticate into Bahi-Khata, and replace the `/logout` placeholder with a working route that clears the session. On successful login, `user_id` and `user_name` are stored in Flask's session so subsequent steps can gate access to protected pages. The navbar in `base.html` is updated to reflect authentication state — showing a "Sign out" link when a session exists and the current "Sign in"/"Get started" links when it does not.
 
 ## Depends on
 - Step 1 — Database setup (`users` table must exist, `get_db()` must work)
@@ -50,7 +50,7 @@ No new dependencies. `werkzeug.security` and `flask.session` are already availab
 - [ ] Submitting the form with empty fields shows an error: `"All fields are required"`
 - [ ] Submitting with a wrong email or wrong password shows: `"Invalid email or password"`
 - [ ] On a login error, the email field is pre-filled with the submitted value
-- [ ] Submitting valid credentials (e.g. demo@spendly.com / demo123) sets `session['user_id']` and redirects to `/profile`
+- [ ] Submitting valid credentials (e.g. demo@bahikhata.com / demo123) sets `session['user_id']` and redirects to `/profile`
 - [ ] Visiting `/logout` clears the session and redirects to `/login`
 - [ ] After logout, visiting `/profile` does not show a logged-in session (session is fully cleared)
 - [ ] The navbar shows "Sign out" when a session is active and "Sign in"/"Get started" when it is not
