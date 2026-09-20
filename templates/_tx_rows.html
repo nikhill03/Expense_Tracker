@@ -15,7 +15,7 @@
         <span class="amount text-amount">{{ tx.amount }}</span>
 
         <span class="col-start-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-tiny text-ink-3">
-            <span>{{ tx.date }}</span>
+            <span>{{ tx.date | dmy }}</span>
             <span class="tag">{{ tx.category }}</span>
             {% if show_event and tx.event_name %}
             <a href="{{ url_for('event_detail', event_id=tx.event_id) }}" class="tag tag-event">{{ tx.event_name }}</a>

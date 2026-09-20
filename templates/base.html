@@ -78,7 +78,9 @@
             {% else %}
                 {% include "_theme_toggle.html" %}
                 <a href="{{ url_for('login') }}" class="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-ink-3 transition-colors hover:text-ink">Sign in</a>
+                {% if config.ALLOW_REGISTRATION %}
                 <a href="{{ url_for('register') }}" class="btn btn-primary ml-1">Get started</a>
+                {% endif %}
             {% endif %}
         </nav>
     </div>
