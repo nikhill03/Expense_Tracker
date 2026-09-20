@@ -1078,3 +1078,108 @@ a { color: inherit; text-decoration: none; }
 
 .back-link { color: var(--accent); text-decoration: none; }
 .back-link:hover { text-decoration: underline; }
+
+/* ------------------------------------------------------------------ */
+/* Pagination, card headers, error page                               */
+/* ------------------------------------------------------------------ */
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+}
+
+.card-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.card-link:hover { text-decoration: underline; }
+
+.expense-range {
+    color: var(--ink-muted);
+    font-size: 0.85rem;
+    font-weight: 400;
+    margin-left: 0.5rem;
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.pagination-status {
+    color: var(--ink-muted);
+    font-size: 0.85rem;
+}
+
+.error-code {
+    font-family: var(--font-display);
+    font-size: 3rem;
+    color: var(--accent-2);
+    margin: 0 0 0.5rem;
+}
+
+.error-card { text-align: center; }
+
+/* ------------------------------------------------------------------ */
+/* Monthly budgets                                                    */
+/* ------------------------------------------------------------------ */
+
+.budget-card { margin-bottom: 1.5rem; }
+
+.budget-headline {
+    font-size: 1.05rem;
+    font-weight: 500;
+    margin: 0.75rem 0 1.25rem;
+}
+
+.budget-headline.is-over { color: var(--danger); }
+
+.budget-subtle {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: var(--ink-muted);
+    margin-top: 0.15rem;
+}
+
+.cat-amount.is-over { color: var(--danger); }
+
+.bar--warning { background: var(--accent-2); }
+
+.budget-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.budget-label { margin: 0; }
+
+.budget-input {
+    max-width: 180px;
+    margin: 0;
+}
+
+.budget-hint {
+    color: var(--ink-muted);
+    font-size: 0.85rem;
+    margin: 0 0 0.5rem;
+}
+
+.budget-empty {
+    color: var(--ink-muted);
+    font-size: 0.9rem;
+    margin: 0 0 1.5rem;
+}
+
+.budget-empty a { color: var(--accent); }

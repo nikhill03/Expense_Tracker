@@ -1,4 +1,7 @@
 expense_tracker.db
+expense_tracker.db-wal
+expense_tracker.db-shm
+backups/
 __pycache__/
 *.pyc
 *.pyo

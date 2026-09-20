@@ -1,0 +1,113 @@
+# Architecture Review — Bahi-Khata
+
+A record of the system-design decisions behind the app: what was changed, what was measured, and what was
+deliberately left alone. Kept short on purpose — if something here goes stale, fix it here rather than adding a
+second copy elsewhere.
+
+| Date | Change | Why |
+|---|---|---|
+| 2026-09-20 | Step 11 review: indexes, single-query dashboard, pagination, WAL, CSRF, login throttling, backups | Moving from a local toy to a public URL holding real spending data |
+
+---
+
+## 1. Shape of the system
+
+One Flask process, one SQLite file, server-rendered Jinja templates, no JavaScript framework, no cache layer, no
+background workers. For a single user logging a handful of expenses a day, this is the right amount of machinery —
+every component added here would be a component to operate and pay for.
+
+```
+phone / laptop  →  gunicorn (1 worker, 4 threads)  →  Flask routes  →  database/queries.py  →  SQLite on a volume
+```
+
+Request path rules that keep it honest:
+- Routes never write SQL; all queries live in `database/queries.py`.
+- Ownership is checked in the route (`404` unknown, `403` someone else's), and repeated in the `WHERE` clause of
+  writes as a second line of defence.
+- Every query is parameterised. No string interpolation of user input, anywhere.
+
+---
+
+## 2. What was measured
+
+Benchmark: a throwaway database with **10,000 expenses across 5 users** (~2,000 rows for the user under test),
+each query timed as the mean of 20 runs. Script: `scratchpad/bench.py`.
+
+| Query | Before | After | Change |
+|---|---:|---:|---|
+| Dashboard stats (month) | 1.67 ms | 0.37 ms | index |
+| Category breakdown (month) | 1.10 ms | 0.23 ms | index |
+| Transaction list, unbounded | 19.09 ms | 15.50 ms | no longer used by any page |
+| Transaction list, 10 rows | 1.49 ms | 0.26 ms | index |
+| Expense list (month) | 1.12 ms | 0.32 ms | index |
+| Combined `get_dashboard` | — | 0.22 ms | new |
+| **Whole profile page's queries** | **21.86 ms** | **0.48 ms** | **~45× faster** |
+
+Query plans changed from `SCAN expenses` to `SEARCH expenses USING INDEX idx_expenses_user_date`, and the expense
+list became a **covering index** scan — the `ORDER BY` no longer builds a temporary B-tree.
+
+At today's 20 rows none of this is perceptible. It was done now because the cost is one line per index and the
+alternative is discovering it in two years with a phone on a slow connection.
+
+---
+
+## 3. Decisions
+
+### 3.1 Indexes follow the access path, not the columns
+Every list and dashboard query filters `user_id` plus a date range, so `idx_expenses_user_date (user_id, date)`
+serves all four. Event pages filter `user_id` with `event_id`, hence `idx_expenses_user_event`. The older
+single-column `idx_expenses_event` was dropped — it was a prefix of the new one and earned nothing.
+
+### 3.2 One aggregate query instead of five round trips
+The dashboard used to run five queries on four connections: two for the stat cards, one for the category bars, one
+for transactions, one for the user. The per-category aggregate already contains the total, the count and the top
+category, so `get_dashboard()` derives all three in Python from a single `GROUP BY` pass. The page is now
+**user lookup + one aggregate + one transaction query**, enforced by a test that counts queries.
+
+### 3.3 Nothing renders an unbounded list
+`/profile` was rendering every expense the user had ever logged. It now shows the latest 10 with a "View all" link;
+`/expenses` paginates at 50 per page; the event page caps at 50. Totals are computed over the whole range in SQL,
+not summed from the rows on screen — so the number stays correct while the page stays small.
+
+### 3.4 SQLite settings chosen for a server, not a laptop
+- `journal_mode = WAL` — readers no longer block the writer.
+- `busy_timeout = 5000` — a request waits for a lock instead of returning a 500.
+- `synchronous = NORMAL` — safe under WAL; a crash can cost the last commit, never the file.
+- `gunicorn --workers 1 --threads 4` — one process avoids multi-process write contention on a single file and fits
+  the free tier's memory. Threads still serve the read-heavy pages concurrently.
+
+### 3.5 Security basics before going public
+- **CSRF tokens** on every POST, home-grown (`secrets.token_urlsafe` in the session, checked in `before_request`) —
+  no new dependency. Disabled under `TESTING` so route tests stay readable, with `tests/test_11_hardening.py`
+  exercising the real behaviour.
+- **Login throttling** in a `login_attempts` table: 5 failures locks that email for 15 minutes. In a table rather
+  than memory so a restart doesn't reset it.
+- **Friendly error pages** for 400/403/404/500 — users see a sentence, not a stack trace.
+
+### 3.6 Backups, because a volume is not a backup
+A daily `VACUUM INTO` snapshot beside the database, keeping 7, triggered by the first request of the day. No
+scheduler to run, and it protects against the thing a volume doesn't: a bad delete.
+
+### 3.7 `/healthz`
+Returns 200 and runs `SELECT 1`, so the platform can tell "process alive" from "app actually working".
+
+---
+
+## 4. Deliberately not done
+
+| Deferred | Why not now | What would change our mind |
+|---|---|---|
+| One connection per request (`flask.g`) | Touches all 17 `get_db()` call sites and every `finally: conn.close()`; worth ~1–2 ms | Doing it anyway as part of the formatting refactor below |
+| **Formatting inside the query layer** | Queries return `"₹1,234.00"` and `"20 Sep 2026"` strings, so callers can't do arithmetic and tests assert on formatted text | **Must be fixed before the JSON API step** — a Shortcut wants `1234.0`, not a rupee string. Plan: return numbers and ISO dates, add `\|rupees` and `\|dmy` Jinja filters |
+| Money as `REAL` instead of integer paise | Float error is ~1e-10 and invisible after 2-dp rounding | Any feature doing settlement maths, e.g. splitting a bill between people |
+| Postgres instead of SQLite | Single writer, single user; SQLite on a volume handles years of data comfortably | Concurrent writers, multiple devices writing at once, or background jobs |
+| A cache layer | Every page is under a millisecond of query time | Only if a page ever becomes expensive to compute, which none is |
+
+---
+
+## 5. Known inconsistency (not a design decision)
+
+Three tests expect `/expenses/add`, `/expenses/<id>/edit` and `/expenses/<id>/delete` to redirect to `/expenses`,
+and one expects `get_recent_transactions` to return ISO dates. The routes redirect to `/profile` and the query
+formats dates for display. The specs say `/expenses`. This predates Step 11 and needs a decision — change the
+routes to match the spec, or update the tests to match the behaviour — rather than being left to rot.

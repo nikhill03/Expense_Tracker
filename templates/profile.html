@@ -57,10 +57,54 @@
         </div>
     </div>
 
+    {% if budget_status %}
+    <div class="profile-card budget-card">
+        <div class="card-header">
+            <h2 class="card-title">Budgets — {{ budget_status.month_label }}</h2>
+            <a href="{{ url_for('budgets') }}" class="card-link">Edit budgets</a>
+        </div>
+
+        <p class="budget-headline{% if budget_status.over_total %} is-over{% endif %}">
+            {% if budget_status.over_total %}
+                {{ budget_status.left_total }} over budget with {{ budget_status.days_left }}
+                day{{ '' if budget_status.days_left == 1 else 's' }} to go
+            {% else %}
+                {{ budget_status.safe_per_day }}/day safe to spend for the next
+                {{ budget_status.days_left }} day{{ '' if budget_status.days_left == 1 else 's' }}
+            {% endif %}
+            <span class="budget-subtle">{{ budget_status.spent_total }} of {{ budget_status.budget_total }}</span>
+        </p>
+
+        <div class="cat-body">
+            {% for cat in budget_status.categories %}
+            <div class="cat-item">
+                <div class="cat-item-header">
+                    <span class="cat-name">{{ cat.name }}</span>
+                    <span class="cat-amount{% if cat.over_budget %} is-over{% endif %}">
+                        {{ cat.spent }} / {{ cat.budget }}
+                    </span>
+                </div>
+                <div class="cat-bar-track">
+                    <div class="cat-bar {% if cat.over_budget %}bar--over{% elif cat.nearly_spent %}bar--warning{% else %}bar--budget{% endif %}"
+                         style="width: {{ cat.pct_of_budget }}%"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <p class="budget-empty">
+        <a href="{{ url_for('budgets') }}">Set a monthly budget</a> to see how this month is tracking.
+    </p>
+    {% endif %}
+
     <div class="profile-lower">
 
         <div class="profile-card">
-            <h2 class="card-title">Recent Transactions</h2>
+            <div class="card-header">
+                <h2 class="card-title">Recent Transactions</h2>
+                <a href="{{ url_for('expenses') }}" class="card-link">View all</a>
+            </div>
             <table class="profile-table">
                 <thead>
                     <tr>
@@ -86,6 +130,7 @@
                         <td class="action-cell">
                             <a href="{{ url_for('edit_expense', expense_id=tx.id) }}" class="btn-action btn-action--edit">Edit</a>
                             <form method="post" action="{{ url_for('delete_expense', expense_id=tx.id) }}" style="display:inline" onsubmit="return confirm('Delete this expense?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn-action btn-action--delete">Delete</button>
                             </form>
                         </td>

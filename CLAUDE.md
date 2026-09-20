@@ -38,8 +38,13 @@ pip install -r requirements.txt
 - `init_db()` — creates tables with `CREATE TABLE IF NOT EXISTS`, then adds any missing columns via `_add_column_if_missing()` so existing databases migrate in place
 - `seed_db()` — inserts sample rows for development
 
-Tables: `users`, `expenses` (with a nullable `event_id`), `events` (name, optional `start_date`/`end_date`/`budget`).
-Read queries live in `database/queries.py`; the expense queries take keyword-only `event_id` / `exclude_events` filters.
+Tables: `users`, `expenses` (with a nullable `event_id`), `events` (name, optional `start_date`/`end_date`/`budget`),
+`budgets` (monthly amount per category), `login_attempts` (failed-login throttling).
+Read queries live in `database/queries.py`; the expense queries take keyword-only `event_id` / `exclude_events`
+filters, and `get_dashboard()` serves the whole dashboard from one aggregate query.
+
+The database path comes from `DATABASE_PATH` (defaults to the local file). SQLite runs in WAL mode with a busy
+timeout; `backup_db()` takes a daily snapshot into `backups/`.
 
 The database file (`expense_tracker.db`) is gitignored.
 
@@ -62,8 +67,11 @@ Jinja2 templates in `templates/`. All pages extend `base.html`, which provides t
 | `/expenses/<id>/edit` | Step 8 |
 | `/expenses/<id>/delete` | Step 9 |
 | `/events`, `/events/new`, `/events/<id>`, `/events/<id>/edit`, `/events/<id>/delete` | Step 10 |
+| `/healthz` | Step 11 |
+| `/budgets` | Step 12 |
 
-Phone/PWA work (production hosting, quick-add page, installable app, back-tap) is Steps 11–18 in `PHONE_PLAN.md`.
+Phone/PWA work (production hosting, quick-add page, installable app, back-tap) is Steps 13–20 in `PHONE_PLAN.md`.
+System-design decisions and what was deliberately deferred: `docs/ARCHITECTURE_REVIEW.md`.
 
 ## Key conventions
 

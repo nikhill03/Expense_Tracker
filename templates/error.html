@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}{{ code }} — Bahi-Khata{% endblock %}
+
+{% block content %}
+<section class="auth-section">
+  <div class="auth-container">
+
+    <div class="auth-header">
+      <p class="error-code">{{ code }}</p>
+      <h1 class="auth-title">{{ title }}</h1>
+      {% if message %}
+      <p class="auth-subtitle">{{ message }}</p>
+      {% endif %}
+    </div>
+
+    <div class="auth-card error-card">
+      <a href="{{ url_for('profile') if session.get('user_id') else url_for('landing') }}"
+         class="btn-submit">
+        {{ 'Back to dashboard' if session.get('user_id') else 'Back to home' }}
+      </a>
+    </div>
+
+  </div>
+</section>
+{% endblock %}
