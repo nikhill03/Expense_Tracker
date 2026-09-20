@@ -4,11 +4,13 @@ import re
 import secrets
 import sqlite3
 import time
+from collections.abc import Mapping
 from datetime import date, datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, abort, g
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 import timeutil
-from database.db import get_db, init_db, seed_db, backup_db
+from database.db import DATABASE_PATH, get_db, init_db, seed_db, backup_db
 from database.queries import (
     get_user_by_id,
     get_dashboard,
@@ -24,8 +26,54 @@ from database.queries import (
     get_month_budget_status,
 )
 
+# The value the repo ships with. It is public, so it is only ever good enough for a
+# laptop — resolve_config refuses to let it reach production.
+DEV_SECRET_KEY = "dev-secret-change-me"
+SESSION_LIFETIME_DAYS = 90
+
+
+def resolve_config(env: Mapping[str, str]) -> dict:
+    """Turn the process environment into Flask config.
+
+    Raises rather than falling back when production is misconfigured. A silent
+    fallback to the shipped secret would mean forgeable login cookies on a public
+    URL, which nobody would notice; a failed deploy is noticed immediately.
+    """
+    app_env = env.get("APP_ENV", "development").strip().lower()
+    is_production = app_env == "production"
+
+    secret_key = env.get("SECRET_KEY", "").strip()
+    if is_production and (not secret_key or secret_key == DEV_SECRET_KEY):
+        raise RuntimeError(
+            "SECRET_KEY must be set to a real, secret value when APP_ENV=production. "
+            'Generate one with: python -c "import secrets; '
+            'print(secrets.token_urlsafe(48))"'
+        )
+
+    return {
+        "APP_ENV": app_env,
+        "IS_PRODUCTION": is_production,
+        "SECRET_KEY": secret_key or DEV_SECRET_KEY,
+        "SESSION_COOKIE_HTTPONLY": True,
+        "SESSION_COOKIE_SAMESITE": "Lax",
+        # Off outside production on purpose: on plain-HTTP localhost the browser
+        # drops a Secure cookie silently and signing in appears to do nothing.
+        "SESSION_COOKIE_SECURE": is_production,
+        "PERMANENT_SESSION_LIFETIME": timedelta(days=SESSION_LIFETIME_DAYS),
+        # Opt-out, so an instance stays open unless someone closes it deliberately.
+        "ALLOW_REGISTRATION": env.get("ALLOW_REGISTRATION", "true").strip().lower()
+        != "false",
+    }
+
+
 app = Flask(__name__)
-app.secret_key = "dev-secret-change-me"
+app.config.update(resolve_config(os.environ))
+
+if app.config["IS_PRODUCTION"]:
+    # Railway terminates TLS, so without this Flask sees http and reads every client
+    # as the proxy. Production only: trusting X-Forwarded-* with nothing in front of
+    # the app would let a client pick its own address.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 PROFILE_TRANSACTION_LIMIT = 10
 EXPENSES_PER_PAGE = 50
@@ -36,6 +84,22 @@ LOGIN_LOCKOUT_MINUTES = 15
 MAX_BACKDATE_YEARS = 5
 
 logging.basicConfig(level=logging.INFO)
+
+# One line, first thing in the log: a deploy should be diagnosable without a shell.
+# Says whether a secret was supplied, never what it is.
+app.logger.info(
+    "starting: env=%s db=%s tz=%s secure_cookies=%s registration=%s secret=%s",
+    app.config["APP_ENV"],
+    DATABASE_PATH,
+    timeutil.app_timezone(),
+    app.config["SESSION_COOKIE_SECURE"],
+    "open" if app.config["ALLOW_REGISTRATION"] else "closed",
+    (
+        "from environment"
+        if app.config["SECRET_KEY"] != DEV_SECRET_KEY
+        else "development default"
+    ),
+)
 
 EXPENSE_CATEGORIES = [
     "Food",
@@ -290,6 +354,21 @@ def date_label(value, today_iso):
 app.jinja_env.globals["date_label"] = date_label
 
 
+def dmy(value):
+    """An ISO date the way a person writes it: 20 Sep 2026.
+
+    Dates cross the query layer as ISO strings so they stay sortable and
+    comparable; turning them into words is the template's job.
+    """
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").strftime("%d %b %Y")
+    except (ValueError, TypeError):
+        return value
+
+
+app.jinja_env.filters["dmy"] = dmy
+
+
 _last_backup_day = None
 
 
@@ -447,7 +526,10 @@ def _clear_login_failures(email):
 with app.app_context():
     try:
         init_db()
-        seed_db()
+        # Sample rows and the demo login are a local convenience. A public
+        # deployment must never come up with a password that is in the repo.
+        if app.config["APP_ENV"] == "development":
+            seed_db()
     except sqlite3.Error:
         # A failed migration should be loud in the logs, not a dead app.
         app.logger.exception("database initialisation failed")
@@ -465,6 +547,9 @@ def landing():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
+    # 404 rather than 403, so a closed instance doesn't advertise the route.
+    if not app.config["ALLOW_REGISTRATION"]:
+        abort(404)
     if session.get("user_id"):
         return redirect(url_for("profile"))
     if request.method == "GET":
@@ -547,6 +632,9 @@ def login():
 
     _clear_login_failures(email)
     session.clear()
+    # The phone is the main client: a back-tap that lands on a login form instead of
+    # the quick-add screen defeats the point. Only ever set on a successful sign-in.
+    session.permanent = True
     session["user_id"] = user["id"]
     session["user_name"] = user["name"]
     return redirect(target or url_for("profile"))
@@ -724,7 +812,7 @@ def add_expense():
 
     if event_id:
         return redirect(url_for("event_detail", event_id=event_id))
-    return redirect(url_for("profile"))
+    return redirect(url_for("expenses"))
 
 
 @app.route("/expenses/<int:expense_id>/edit", methods=["GET", "POST"])
@@ -789,7 +877,7 @@ def edit_expense(expense_id):
     finally:
         conn.close()
 
-    return redirect(url_for("profile"))
+    return redirect(url_for("expenses"))
 
 
 @app.route("/expenses/<int:expense_id>/delete", methods=["POST"])
@@ -814,7 +902,7 @@ def delete_expense(expense_id):
     finally:
         conn.close()
 
-    return redirect(url_for("profile"))
+    return redirect(url_for("expenses"))
 
 
 # ------------------------------------------------------------------ #
@@ -1024,7 +1112,6 @@ def budgets():
     return redirect(url_for("budgets"))
 
 
-
 # ------------------------------------------------------------------ #
 # Quick add — the phone screen a back-tap or a shared SMS opens       #
 # ------------------------------------------------------------------ #
@@ -1144,7 +1231,7 @@ def quick_add():
                 error=error,
                 saved=None,
                 source=None,
-                    **_quick_backdrop(user_id, today),
+                **_quick_backdrop(user_id, today),
             ),
             400,
         )

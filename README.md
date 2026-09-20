@@ -46,14 +46,29 @@ site with no styles.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `DATABASE_PATH` | `expense_tracker.db` | SQLite file location. Point at a mounted volume in production so data survives a redeploy. |
+| `APP_ENV` | `development` | `production` requires a real `SECRET_KEY`, sends `Secure` cookies, trusts the proxy headers, and never seeds the sample data or demo login. |
+| `SECRET_KEY` | a placeholder, development only | Signs the session cookie. **Required in production** — the app refuses to start without it, rather than falling back to a value that is in this repo. |
+| `DATABASE_PATH` | `expense_tracker.db` | SQLite file location. Point at a mounted volume in production so data survives a redeploy. Daily backups are written to a `backups/` directory beside it. |
 | `APP_TIMEZONE` | `Asia/Kolkata` | The calendar day the app uses. Set this to the users' zone, not the server's — see below. |
+| `ALLOW_REGISTRATION` | `true` | Set to `false` to close `/register` on a public instance; the sign-up links disappear with it. |
 | `PORT` | `5001` | Port to bind. |
+
+`.env.example` lists the same set with safe placeholder values. `.env` is gitignored.
 
 **On `APP_TIMEZONE`:** expense dates are what a person would write in a ledger, so
 they follow the user's calendar day rather than the server's. A UTC host would
 otherwise date every expense logged before 05:30 IST to the previous day. All
 user-facing dates go through `timeutil.today()`; never `date.today()`.
+
+## Deploying
+
+The app runs on Railway: gunicorn from the `Procfile`, SQLite on a volume mounted at
+`/data`, `/healthz` as the healthcheck. Set `APP_ENV=production`, a real `SECRET_KEY`
+and `DATABASE_PATH=/data/expense_tracker.db`, or the deploy will either refuse to
+start or throw the data away on the next redeploy.
+
+Full runbook — variables, volume, rollback, restoring a backup, rotating the secret:
+**`docs/DEPLOYMENT.md`**.
 
 ## Testing
 
@@ -82,7 +97,7 @@ templates/             Jinja2; partials are prefixed with _
 static/css/src/        Tailwind source (the design system)
 static/css/app.css     compiled output — committed, do not edit by hand
 scripts/ui_audit.py    browser-driven accessibility and layout checks
-docs/                  architecture notes
+docs/                  architecture notes and the deployment runbook
 ```
 
 ## Conventions

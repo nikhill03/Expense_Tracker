@@ -181,14 +181,13 @@ def get_recent_transactions(
 
     result = []
     for row in rows:
-        try:
-            fmt_date = datetime.strptime(row["date"], "%Y-%m-%d").strftime("%d %b %Y")
-        except (ValueError, TypeError):
-            fmt_date = row["date"]
         result.append(
             {
                 "id": row["id"],
-                "date": fmt_date,
+                # ISO, like get_filtered_expenses — a date that has been turned into
+                # words can no longer be compared or sorted. The `dmy` filter does the
+                # formatting in the template, where it belongs.
+                "date": row["date"],
                 "description": row["description"],
                 "category": row["category"],
                 "amount": f"₹{row['amount']:,.2f}",
@@ -510,5 +509,7 @@ def get_month_budget_status(user_id, today=None):
         "over_total": left < 0,
         "days_left": days_left,
         "safe_per_day": f"₹{max(left, 0) / days_left:,.0f}",
-        "pct_used": min(int(spent_total / budget_total * 100), 100) if budget_total else 0,
+        "pct_used": (
+            min(int(spent_total / budget_total * 100), 100) if budget_total else 0
+        ),
     }

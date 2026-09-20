@@ -7,6 +7,8 @@ second copy elsewhere.
 | Date | Change | Why |
 |---|---|---|
 | 2026-09-20 | Step 11 review: indexes, single-query dashboard, pagination, WAL, CSRF, login throttling, backups | Moving from a local toy to a public URL holding real spending data |
+| 2026-09-20 | Step 14: configuration from the environment, data on a volume, 90-day secure sessions, deploy runbook | The public URL was running on a secret that is in the repo, a demo login anyone could use, and a database that was wiped on every redeploy |
+| 2026-09-20 | Settled the four red tests: writes redirect to `/expenses`, dates leave the query layer as ISO and get formatted by a `\|dmy` filter | Both were implementation drift from the specs, and the date one was showing two different formats on two pages |
 
 ---
 
@@ -90,6 +92,28 @@ scheduler to run, and it protects against the thing a volume doesn't: a bad dele
 
 ### 3.7 `/healthz`
 Returns 200 and runs `SELECT 1`, so the platform can tell "process alive" from "app actually working".
+Step 14 wired it up as Railway's healthcheck, which is what makes it earn its keep: a deploy whose volume
+is missing now fails to go live instead of serving 500s to a phone.
+
+### 3.8 One environment switch, not a drawer of flags
+`APP_ENV` decides everything that differs between a laptop and the public site: whether a real `SECRET_KEY`
+is mandatory, whether the session cookie is `Secure`, whether `ProxyFix` trusts `X-Forwarded-*`, and whether
+the sample data and demo login are seeded. The alternative — a separate variable per behaviour — means a
+deployment can be half-production, which is the state where you ship a `Secure` cookie with a public secret
+and nobody notices. `ALLOW_REGISTRATION` is the one genuinely independent choice, so it stays its own
+variable.
+
+Missing configuration **raises at import** rather than falling back. A failed deploy is discovered in
+seconds; a public site quietly signing cookies with a key that is in the repo is discovered by whoever reads
+the repo.
+
+`SESSION_COOKIE_SECURE` follows `APP_ENV` rather than being on always: on plain-HTTP localhost the browser
+drops a `Secure` cookie without a word, so signing in appears to do nothing at all.
+
+### 3.9 Backups live beside the database, on the volume
+`backup_db()` derives its directory from `DATABASE_PATH`, so pointing the app at `/data` moves the snapshots
+onto the volume with the data. That guards against a bad delete. It does **not** guard against losing the
+volume — off-site copies are the obvious next step and are deliberately not done yet (see §4).
 
 ---
 
@@ -98,16 +122,31 @@ Returns 200 and runs `SELECT 1`, so the platform can tell "process alive" from "
 | Deferred | Why not now | What would change our mind |
 |---|---|---|
 | One connection per request (`flask.g`) | Touches all 17 `get_db()` call sites and every `finally: conn.close()`; worth ~1–2 ms | Doing it anyway as part of the formatting refactor below |
-| **Formatting inside the query layer** | Queries return `"₹1,234.00"` and `"20 Sep 2026"` strings, so callers can't do arithmetic and tests assert on formatted text | **Must be fixed before the JSON API step** — a Shortcut wants `1234.0`, not a rupee string. Plan: return numbers and ISO dates, add `\|rupees` and `\|dmy` Jinja filters |
+| **Amount formatting inside the query layer** | Queries still return `"₹1,234.00"` strings, so callers can't do arithmetic and tests assert on formatted text. Dates are done — see §5 | **Must be fixed before the JSON API step** — a Shortcut wants `1234.0`, not a rupee string. Remaining work: return numbers, add a `\|rupees` Jinja filter beside the existing `\|dmy` |
 | Money as `REAL` instead of integer paise | Float error is ~1e-10 and invisible after 2-dp rounding | Any feature doing settlement maths, e.g. splitting a bill between people |
 | Postgres instead of SQLite | Single writer, single user; SQLite on a volume handles years of data comfortably | Concurrent writers, multiple devices writing at once, or background jobs |
 | A cache layer | Every page is under a millisecond of query time | Only if a page ever becomes expensive to compute, which none is |
+| Off-site backups | The daily snapshots sit on the same volume as the database, so they cover a bad delete but not a lost volume | Anything that makes the data hard to re-enter — a second user, or a year of history |
+| CI | The suite runs locally in 45 seconds and one person merges everything | A second contributor, or the first time a broken `main` reaches the phone |
 
 ---
 
-## 5. Known inconsistency (not a design decision)
+## 5. Resolved: the four red tests
 
-Three tests expect `/expenses/add`, `/expenses/<id>/edit` and `/expenses/<id>/delete` to redirect to `/expenses`,
-and one expects `get_recent_transactions` to return ISO dates. The routes redirect to `/profile` and the query
-formats dates for display. The specs say `/expenses`. This predates Step 11 and needs a decision — change the
-routes to match the spec, or update the tests to match the behaviour — rather than being left to rot.
+Four tests had been failing since July. Both causes were implementation drift, not bad tests, so the code moved to
+meet them rather than the other way round.
+
+**The redirect after a write.** `/expenses/add`, `/expenses/<id>/edit` and `/expenses/<id>/delete` redirected to
+`/profile`; specs 07, 08 and 09 independently say `/expenses`, and the tests were written from those specs. The
+list page is also the better destination: it is where the edit and delete buttons were clicked from, and it is the
+page that shows the result of the change. All three now redirect to `/expenses`. Adding an expense while an event
+is selected still goes to that event's page — that came later than the specs and is deliberate.
+
+**Dates formatted in the query layer.** `get_recent_transactions` returned `"10 Jul 2026"` while
+`get_filtered_expenses` returned `"2026-07-10"`, and both feed the same `tx_rows()` macro — so `/profile` and
+`/expenses` were printing dates in two different formats on screen. `get_recent_transactions` now returns ISO like
+its neighbour, and a `|dmy` Jinja filter does the formatting in the template. A date that has been turned into
+words cannot be compared or sorted; keeping it ISO until the last moment is the point.
+
+That filter is the first slice of the refactor in §4 — amounts still cross the query layer as `"₹1,234.00"`
+strings, and still need to stop before the JSON API step.
