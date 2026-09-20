@@ -1,47 +1,44 @@
 {% extends "base.html" %}
 
 {% block title %}Sign in — Bahi-Khata{% endblock %}
+{% block description %}Sign in to your Bahi-Khata ledger.{% endblock %}
 
 {% block content %}
+<div class="shell max-w-sm! py-14">
 
-<section class="auth-section">
-    <div class="auth-container">
+    <h1 class="font-display text-3xl font-bold tracking-tight">Welcome back</h1>
+    <p class="mt-1.5 text-sm text-ink-3">Sign in to pick up your ledger.</p>
 
-        <div class="auth-header">
-            <h1 class="auth-title">Welcome back</h1>
-            <p class="auth-subtitle">Sign in to your Bahi-Khata account</p>
+    {% if error %}
+    <p class="notice notice-error mt-6" role="alert">
+        <svg viewBox="0 0 20 20" class="mt-px h-4 w-4 shrink-0" fill="currentColor" aria-hidden="true"><path d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 4a1 1 0 0 1 1 1v4a1 1 0 1 1-2 0V7a1 1 0 0 1 1-1zm0 9.2a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4z"/></svg>
+        {{ error }}
+    </p>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('login') }}" class="mt-7">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+
+        <div>
+            <label for="email" class="field-label">Email</label>
+            <input type="email" id="email" name="email" class="field"
+                   placeholder="you@example.com" value="{{ email or '' }}"
+                   autocomplete="email" required autofocus>
         </div>
 
-        <div class="auth-card">
-            {% if error %}
-            <div class="auth-error">{{ error }}</div>
-            {% endif %}
-
-            <form method="POST" action="/login">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="form-group">
-                    <label for="email">Email address</label>
-                    <input type="email" id="email" name="email"
-                           class="form-input" placeholder="nitish@example.com"
-                           value="{{ email or '' }}"
-                           required autofocus>
-                </div>
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password"
-                           class="form-input" placeholder="Your password"
-                           required>
-                </div>
-                <button type="submit" class="btn-submit">Sign in</button>
-            </form>
+        <div class="mt-5">
+            <label for="password" class="field-label">Password</label>
+            <input type="password" id="password" name="password" class="field"
+                   autocomplete="current-password" required>
         </div>
 
-        <p class="auth-switch">
-            Don't have an account?
-            <a href="{{ url_for('register') }}">Create one free</a>
-        </p>
+        <button type="submit" class="btn btn-accent btn-block mt-7">Sign in</button>
+    </form>
 
-    </div>
-</section>
+    <p class="mt-6 text-center text-sm text-ink-3">
+        New here? <a href="{{ url_for('register') }}" class="link-quiet">Create an account</a>
+    </p>
 
+</div>
 {% endblock %}

@@ -1,86 +1,50 @@
 {% extends "base.html" %}
+{% from "_tx_rows.html" import tx_rows %}
 
-{% block title %}My Expenses — Bahi-Khata{% endblock %}
+{% block title %}History — Bahi-Khata{% endblock %}
+{% block description %}Every expense you've logged, filtered by date.{% endblock %}
 
 {% block content %}
-<div class="profile-page">
+<div class="shell pb-16 pt-7">
 
-    <section class="profile-header">
-        <div class="profile-info">
-            <h1 class="profile-name">My Expenses</h1>
+    <h1 class="font-display text-2xl font-bold tracking-tight">History</h1>
+
+    <form method="get" class="mt-5 flex flex-wrap items-end gap-2">
+        <div class="min-w-[8.5rem] flex-1">
+            <label for="from" class="field-label">From</label>
+            <input type="date" id="from" name="from" class="field" value="{{ from_date }}" required>
         </div>
-        <a href="{{ url_for('add_expense') }}" class="btn-primary">+ Add Expense</a>
-    </section>
-
-    <form method="get" class="expense-filter">
-        <label for="from">From</label>
-        <input type="date" id="from" name="from" value="{{ from_date }}">
-        <label for="to">To</label>
-        <input type="date" id="to" name="to" value="{{ to_date }}">
-        <button type="submit" class="btn-primary">Filter</button>
+        <div class="min-w-[8.5rem] flex-1">
+            <label for="to" class="field-label">To</label>
+            <input type="date" id="to" name="to" class="field" value="{{ to_date }}" required>
+        </div>
+        <button type="submit" class="btn btn-quiet">Filter</button>
     </form>
 
-    <p class="expense-total">
-        Total: <strong>{{ total }}</strong>
-        {% if pagination and pagination.count %}
-        <span class="expense-range">
-            showing {{ pagination.first_index }}–{{ pagination.last_index }} of {{ pagination.count }}
+    <div class="mt-6 flex items-baseline justify-between gap-4 border-b border-rule pb-3">
+        <span class="text-tiny font-semibold text-ink-3">
+            Total
+            {% if pagination and pagination.count %}
+            <span class="font-normal">· showing {{ pagination.first_index }}–{{ pagination.last_index }} of {{ pagination.count }}</span>
+            {% endif %}
         </span>
-        {% endif %}
-    </p>
-
-    <div class="profile-table-wrap">
-        <table class="profile-table">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Description</th>
-                    <th>Category</th>
-                    <th class="amount-cell">Amount</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% if expenses %}
-                    {% for e in expenses %}
-                    <tr>
-                        <td>{{ e.date }}</td>
-                        <td>
-                            {{ e.description }}
-                            {% if e.event_name %}
-                            <a href="{{ url_for('event_detail', event_id=e.event_id) }}" class="badge badge--event">{{ e.event_name }}</a>
-                            {% endif %}
-                        </td>
-                        <td><span class="badge badge--{{ e.category | lower | replace(' ', '-') }}">{{ e.category }}</span></td>
-                        <td class="amount-cell">{{ e.amount }}</td>
-                        <td class="action-cell">
-                            <a href="{{ url_for('edit_expense', expense_id=e.id) }}" class="btn-action btn-action--edit">Edit</a>
-                            <form method="post" action="{{ url_for('delete_expense', expense_id=e.id) }}" style="display:inline" onsubmit="return confirm('Delete this expense?')">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn-action btn-action--delete">Delete</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                {% else %}
-                    <tr>
-                        <td colspan="5" style="text-align: center; color: var(--ink-muted); padding: 2rem;">No expenses found for this date range.</td>
-                    </tr>
-                {% endif %}
-            </tbody>
-        </table>
+        <span class="amount text-xl text-ink">{{ total }}</span>
     </div>
+
+    {{ tx_rows(expenses, 'No expenses in this date range. Try widening the dates.') }}
 
     {% if pagination and pagination.pages > 1 %}
     {% set page_args = '&from=' ~ from_date ~ '&to=' ~ to_date %}
-    <nav class="pagination">
+    <nav class="mt-8 flex items-center justify-between gap-3" aria-label="Pages">
         {% if pagination.has_prev %}
-        <a href="?page={{ pagination.page - 1 }}{{ page_args }}" class="preset-btn">← Newer</a>
-        {% endif %}
-        <span class="pagination-status">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+        <a href="?page={{ pagination.page - 1 }}{{ page_args }}" class="btn btn-quiet" rel="prev">Newer</a>
+        {% else %}<span></span>{% endif %}
+
+        <span class="text-tiny text-ink-3">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+
         {% if pagination.has_next %}
-        <a href="?page={{ pagination.page + 1 }}{{ page_args }}" class="preset-btn">Older →</a>
-        {% endif %}
+        <a href="?page={{ pagination.page + 1 }}{{ page_args }}" class="btn btn-quiet" rel="next">Older</a>
+        {% else %}<span></span>{% endif %}
     </nav>
     {% endif %}
 

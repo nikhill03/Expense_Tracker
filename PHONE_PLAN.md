@@ -41,7 +41,7 @@ full-screen, and every phone's back-tap feature can launch it.
 | 2 | `app.secret_key = "dev-secret-change-me"` is hardcoded | Anyone reading the repo can forge a login session |
 | 3 | Session is not permanent | Logged out whenever the browser/app closes → breaks "tap and type" |
 | 4 | `seed_db()` always creates `demo@bahikhata.com / demo123` | A known login exists on the public site |
-| 5 | No mobile-first entry page, no manifest, no service worker; `static/js/main.js` is empty | Can't install as an app; forms are desktop-sized |
+| 5 | ~~No mobile-first entry page~~ — resolved: `/quick` plus the bottom tab bar and quick-add sheet ship phone-first. Still no manifest and no service worker (Step 16). | Can't install as an app yet, but the forms are thumb-sized |
 
 ---
 
@@ -72,7 +72,7 @@ Step 12 monthly budgets), so each one can become `.claude/specs/1x-*.md` via
 **Files:** `app.py`, `templates/login.html`
 **Done when:** closing and reopening the app on the phone keeps you signed in.
 
-### Step 15 — Mobile quick-add page (`/quick`)
+### Step 15 — Mobile quick-add page (`/quick`) ✅ done
 **What:** a single-purpose, thumb-friendly screen.
 - **Amount** — large input, `inputmode="decimal"`, autofocus → number keypad opens immediately.
 - **Type** — categories as big tappable chips (from `EXPENSE_CATEGORIES`), not a dropdown.
@@ -86,8 +86,27 @@ Step 12 monthly budgets), so each one can become `.claude/specs/1x-*.md` via
 - **Save** → flash "Saved ₹350 to Food" → form resets for the next entry, with a "View dashboard" link.
 - Reuse `_parse_expense_form` for validation and the same `INSERT` as `add_expense()`.
 
-**Files:** `app.py` (new route), `templates/quick_add.html` (new), `static/css/style.css`
+**Files:** `app.py` (`quick_add`, `parse_amount_from_text`, `parse_source_from_text`),
+`templates/quick_add.html`, `templates/_quick_form.html`, `static/css/src/app.css`
 **Done when:** logging an expense takes **under 10 seconds** from opening the page.
+
+**Shipped, with two additions to the original plan:**
+- The same form is also a **glass bottom sheet** (native `popover` + `@starting-style`)
+  reachable from the ₹ button in the bottom tab bar on every signed-in page. Saving from
+  the sheet returns you to the page you were on; saving from `/quick` stays put, ready
+  for the next entry. Same-site `next` targets only.
+- `/quick` also accepts `?text=` (the phone's share sheet hands over the whole SMS),
+  and names the sender back to you — "Read from your UPI alert".
+- Tests: `tests/test_13_quick_add.py` (60 cases), including that a GET never writes.
+
+**Refined in Step 13** (`.claude/specs/13-quick-add-refinements.md`):
+- The sheet can attach an expense to an **event**, and preselects the event whose page you
+  opened it from. Optional throughout, and hidden entirely if you have no events.
+- "Dated today" is now one tap to the phone's calendar, so a forgotten expense from yesterday
+  takes one interaction instead of three.
+- Fixed a timezone bug that dated every expense logged between midnight and 5:30am IST to the
+  previous day, and a normalisation bug that could make an expense vanish from every filtered
+  view. See `timeutil.py` and `tests/test_14_dates_and_timezone.py`.
 
 ### Step 16 — Make it installable (PWA)
 **What**
@@ -108,7 +127,7 @@ Step 12 monthly budgets), so each one can become `.claude/specs/1x-*.md` via
 `static/js/main.js`, `app.py`
 **Done when:** Chrome / Samsung Internet offers **"Install app"** and it opens full-screen with no browser bar.
 
-### Step 17 — Mobile dashboard
+### Step 17 — Mobile dashboard ✅ mostly done
 **What**
 - Responsive CSS for `profile.html`: the transactions table becomes a card list on small screens.
 - **Category chart**: horizontal bars (pure CSS, driven by `get_category_breakdown` percentages) or a Chart.js
@@ -116,8 +135,15 @@ Step 12 monthly budgets), so each one can become `.claude/specs/1x-*.md` via
 - New stat: **This month vs last month** (↑/↓ %).
 - Bottom navigation in standalone mode: **Add | Dashboard | History**.
 
-**Files:** `templates/profile.html`, `static/css/style.css`, `database/queries.py` (month-comparison query)
+**Files:** `templates/profile.html`, `static/css/src/app.css`, `database/queries.py` (month-comparison query)
 **Done when:** the dashboard is readable on a 6" screen without horizontal scrolling.
+
+**Done:** the transactions table is now a card/ruled list on small screens, category
+spending shows as CSS meters, and the bottom tab bar (Home · History · ₹ · Events ·
+Budgets) ships. `scripts/ui_audit.py` checks 360/390/768/1280px for sideways scrolling
+and sub-44px tap targets on every page.
+**Still open:** the *this month vs last month* (↑/↓ %) stat — needs the month-comparison
+query, which is not written yet.
 
 ### Step 18 — Back-tap wiring (per phone)
 
@@ -207,4 +233,6 @@ Use `/test-feature <spec>` for each step.
 |---|---|---|
 | 2026-09-18 | Initial phone plan created | Move Bahi-Khata from desktop web app to daily phone use with back-tap quick entry |
 | 2026-09-20 | Renamed app to Bahi-Khata; steps renumbered 11–18 after the Events feature took Step 10 | Events shipped first; quick-add gains an optional event picker |
+| 2026-09-20 | UI rebuilt on Tailwind v4 with a phone-first design system; Step 15 shipped, Step 17 mostly shipped | The app is used on a phone against a bank notification, so the interface had to be built for that moment rather than adapted down from desktop |
+| 2026-09-20 | Step 13: event picker in the sheet, one-tap date picker, `APP_TIMEZONE`, date validation and normalisation | Using the sheet on a real event page showed you could not attach the expense to it; investigating the date row turned up a timezone bug affecting 5.5 hours of every day |
 

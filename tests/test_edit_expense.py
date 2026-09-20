@@ -366,7 +366,7 @@ class TestEditExpenseGetForm:
         """The page must contain an 'Edit Expense' heading or title."""
         client, _, expense_id = logged_in_client
         resp = client.get(f"/expenses/{expense_id}/edit")
-        assert b"Edit Expense" in resp.data
+        assert b"Edit expense" in resp.data
 
     def test_get_form_uses_post_method(self, logged_in_client):
         """The form element must use method='post'."""

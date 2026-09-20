@@ -2,51 +2,156 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>{% block title %}Bahi-Khata{% endblock %}</title>
+    <meta name="description" content="{% block description %}Log an expense in seconds and see where your money actually goes.{% endblock %}">
+
+    {#- Resolve the theme before first paint so a dark phone never flashes white.
+        Runs inline and synchronously on purpose. -#}
+    <script>
+    (function () {
+        try {
+            var saved = localStorage.getItem('bk-theme');
+            var dark = saved ? saved === 'dark'
+                             : matchMedia('(prefers-color-scheme: dark)').matches;
+            document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        } catch (e) {
+            document.documentElement.dataset.theme = 'light';
+        }
+    }());
+    </script>
+
+    <meta name="theme-color" content="#fafaf8" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#14141f" media="(prefers-color-scheme: dark)">
+    <meta name="color-scheme" content="light dark">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    {#- Fonts load async so they never block first paint; the fallback stack is
+        metric-similar enough that the swap is quiet. -#}
+    <link rel="stylesheet" media="print" onload="this.media='all'"
+          href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
+    <noscript>
+        <link rel="stylesheet"
+              href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
+    </noscript>
+
+    {#- Prerender the page the user is most likely to open next. Cheap on an MPA
+        and invisible where unsupported. -#}
+    <script type="speculationrules">
+    {"prerender":[{"where":{"href_matches":"/profile"},"eagerness":"moderate"},
+                  {"where":{"href_matches":"/expenses"},"eagerness":"moderate"},
+                  {"where":{"href_matches":"/quick"},"eagerness":"moderate"}]}
+    </script>
+
     {% block head %}{% endblock %}
 </head>
-<body>
+<body class="tap-safe {% if session.get('user_id') %}pb-[calc(var(--spacing-tabbar)+env(safe-area-inset-bottom))] lg:pb-0{% endif %}">
 
-    <nav class="navbar">
-        <div class="nav-inner">
-            <a href="{{ url_for('landing') }}" class="nav-brand">
-                <span class="brand-icon">◈</span>
-                <span class="brand-name">Bahi-Khata</span>
-            </a>
-            <div class="nav-links">
-                {% if session.get('user_id') %}
-                    <a href="{{ url_for('events') }}">Events</a>
-                    <a href="{{ url_for('budgets') }}">Budgets</a>
-                    <a href="{{ url_for('profile') }}" class="nav-username">{{ session.get('user_name', '') }}</a>
-                    <a href="{{ url_for('logout') }}">Sign out</a>
-                {% else %}
-                    <a href="{{ url_for('login') }}">Sign in</a>
-                    <a href="{{ url_for('register') }}" class="nav-cta">Get started</a>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
+<a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-3 focus:rounded-lg focus:bg-ink focus:px-4 focus:py-2 focus:text-paper">Skip to content</a>
 
-    <main class="main-content">
-        {% block content %}{% endblock %}
-    </main>
+<header class="topbar glass sticky top-0 z-30 border-b border-rule">
+    <div class="shell shell--wide flex h-14 items-center justify-between gap-4">
+        <a href="{{ url_for('profile') if session.get('user_id') else url_for('landing') }}"
+           class="flex min-h-11 items-center gap-2 font-display text-[1.0625rem] font-bold tracking-tight">
+            {#- The mark is a bound ledger seen edge-on: two stacked pages and the
+                red binding down the spine. -#}
+            <svg viewBox="0 0 20 20" class="h-5 w-5" aria-hidden="true">
+                <rect x="2.5" y="3" width="15" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+                <path d="M7 3v14" stroke="var(--color-lac)" stroke-width="1.6"/>
+            </svg>
+            Bahi-Khata
+        </a>
 
-    <footer class="footer">
-        <div class="footer-inner">
-            <span class="brand-icon">◈</span>
-            <span class="footer-name">Bahi-Khata</span>
-            <p class="footer-copy">Track every rupee. Own your finances.</p>
-            <a href="/terms">Terms and Conditions</a>
-            <a href="/privacy">Privacy Policy</a>
-        </div>
-    </footer>
+        <nav class="flex items-center gap-1" aria-label="Main">
+            {% if session.get('user_id') %}
+                <div class="hidden items-center gap-1 lg:flex">
+                    {% for href, label in [(url_for('profile'), 'Dashboard'), (url_for('expenses'), 'History'), (url_for('events'), 'Events'), (url_for('budgets'), 'Budgets')] %}
+                    <a href="{{ href }}"
+                       class="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-ink-3 transition-colors hover:text-ink{% if request.path == href %} text-ink bg-sunken{% endif %}"
+                       {% if request.path == href %}aria-current="page"{% endif %}>{{ label }}</a>
+                    {% endfor %}
+                </div>
+                {% include "_theme_toggle.html" %}
+                <a href="{{ url_for('logout') }}" class="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-ink-3 transition-colors hover:text-ink">Sign out</a>
+            {% else %}
+                {% include "_theme_toggle.html" %}
+                <a href="{{ url_for('login') }}" class="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-ink-3 transition-colors hover:text-ink">Sign in</a>
+                <a href="{{ url_for('register') }}" class="btn btn-primary ml-1">Get started</a>
+            {% endif %}
+        </nav>
+    </div>
+</header>
 
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    {% block scripts %}{% endblock %}
+<main id="main" class="min-h-[60vh]">
+    {% block content %}{% endblock %}
+</main>
+
+{% if not session.get('user_id') %}
+<footer class="border-t border-rule py-10 text-center">
+    <div class="shell">
+        <p class="font-display text-base font-bold">Bahi-Khata</p>
+        <p class="mt-1 text-tiny text-ink-3">Track every rupee. Own your finances.</p>
+        <p class="mt-4 flex justify-center gap-5 text-tiny text-ink-3">
+            <a href="{{ url_for('terms') }}" class="hover:text-ink">Terms</a>
+            <a href="{{ url_for('privacy') }}" class="hover:text-ink">Privacy</a>
+        </p>
+    </div>
+</footer>
+{% endif %}
+
+{% if session.get('user_id') %}
+{#- Bottom tabs: the primary navigation on a phone, hidden once there is room
+    for the header nav. -#}
+<nav class="tabbar glass border-t border-rule lg:hidden" aria-label="Sections">
+    {% set tabs = [
+        (url_for('profile'),  'Home',    'M3 10.2 12 3l9 7.2V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z'),
+        (url_for('expenses'), 'History', 'M4 6h16M4 12h16M4 18h10'),
+    ] %}
+    {% for href, label, d in tabs %}
+    <a href="{{ href }}" class="tab" {% if request.path == href %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ d }}"/></svg>
+        {{ label }}
+    </a>
+    {% endfor %}
+
+    {% if request.endpoint == 'quick_add' %}
+    <span class="tab tab-add" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </span>
+    {% else %}
+    <button type="button" class="tab tab-add" popovertarget="quick-sheet" aria-label="Add an expense">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    {% endif %}
+
+    {% set tabs2 = [
+        (url_for('events'),  'Events',  'M8 3v3m8-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z'),
+        (url_for('budgets'), 'Budgets', 'M12 3a9 9 0 1 0 9 9h-9z'),
+    ] %}
+    {% for href, label, d in tabs2 %}
+    <a href="{{ href }}" class="tab" {% if request.path == href %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ d }}"/></svg>
+        {{ label }}
+    </a>
+    {% endfor %}
+</nav>
+
+{#- The quick-add sheet is available from every signed-in page, so an expense is
+    never more than one tap away. /quick already *is* this form, so it skips it. -#}
+{% if request.endpoint != 'quick_add' %}
+{% from "_quick_form.html" import quick_form %}
+<div id="quick-sheet" popover class="sheet glass">
+    <div class="sheet-grip"></div>
+    <h2 class="px-5 pb-1 pt-4 font-display text-lg font-bold tracking-tight">New expense</h2>
+    {{ quick_form(quick_categories, quick_events, today, host='sheet',
+              event_id=quick_event_id, earliest=earliest_date) }}
+</div>
+{% endif %}
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+{% block scripts %}{% endblock %}
 </body>
 </html>

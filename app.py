@@ -1,11 +1,13 @@
 import logging
 import os
+import re
 import secrets
 import sqlite3
 import time
 from datetime import date, datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, abort, g
 from werkzeug.security import generate_password_hash, check_password_hash
+import timeutil
 from database.db import get_db, init_db, seed_db, backup_db
 from database.queries import (
     get_user_by_id,
@@ -14,6 +16,7 @@ from database.queries import (
     get_category_breakdown,
     get_filtered_expenses,
     get_expense_by_id,
+    get_event_options,
     get_events_for_user,
     get_event_by_id,
     get_event_summary,
@@ -29,6 +32,8 @@ EXPENSES_PER_PAGE = 50
 SLOW_REQUEST_MS = 200
 MAX_LOGIN_FAILURES = 5
 LOGIN_LOCKOUT_MINUTES = 15
+# Far beyond any plausible manual entry, so it only ever catches a typo.
+MAX_BACKDATE_YEARS = 5
 
 logging.basicConfig(level=logging.INFO)
 
@@ -71,14 +76,95 @@ def _parse_expense_form(form):
         return fields, None, "Date is required."
 
     try:
-        date.fromisoformat(expense_date)
+        parsed_date = date.fromisoformat(expense_date)
     except ValueError:
         return fields, None, "Date must be a valid date."
+
+    today = timeutil.today()
+    if parsed_date > today:
+        return fields, None, "Date can't be in the future."
+    if parsed_date < today - timedelta(days=365 * MAX_BACKDATE_YEARS):
+        return fields, None, "That date looks wrong — check the year."
+
+    # Store the normalised form. date.fromisoformat also accepts "20260920",
+    # and every date filter compares YYYY-MM-DD strings lexically, so an
+    # un-normalised date would sort outside its own month and the expense would
+    # vanish from every filtered view while still counting in the totals.
+    fields["expense_date"] = parsed_date.isoformat()
 
     if description and len(description) > 255:
         return fields, None, "Description must be 255 characters or fewer."
 
     return fields, amount, None
+
+
+# ------------------------------------------------------------------ #
+# Reading an amount out of a bank message                             #
+# ------------------------------------------------------------------ #
+
+# "Rs.1,234.56", "INR 350", "₹350.00" — the amount always carries a currency
+# marker, which is what keeps account numbers and dates from matching.
+_CURRENCY_AMOUNT = re.compile(
+    r"(?:INR|Rs\.?|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)", re.IGNORECASE
+)
+# "debited by 350.0" — some banks drop the currency marker after the verb.
+_DEBITED_AMOUNT = re.compile(
+    r"debited\s*(?:by|for|with)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)", re.IGNORECASE
+)
+
+# Only used to tell the user where a prefilled amount came from.
+_SOURCES = [
+    ("UPI", "UPI alert"),
+    ("GPay", "Google Pay alert"),
+    ("Google Pay", "Google Pay alert"),
+    ("PhonePe", "PhonePe alert"),
+    ("Paytm", "Paytm alert"),
+    ("SBI", "SBI alert"),
+    ("HDFC", "HDFC alert"),
+    ("ICICI", "ICICI alert"),
+    ("Axis", "Axis alert"),
+    ("Kotak", "Kotak alert"),
+    ("PNB", "PNB alert"),
+]
+
+
+def parse_amount_from_text(text):
+    """Pull a rupee amount out of a debit SMS, or return None.
+
+    Nothing here writes anything — the parsed value only prefills the form, and
+    the user still has to tap Save. That is what makes it safe to accept from a
+    link an automation built.
+    """
+    if not text:
+        return None
+
+    for pattern in (_CURRENCY_AMOUNT, _DEBITED_AMOUNT):
+        match = pattern.search(text)
+        if match:
+            try:
+                value = float(match.group(1).replace(",", ""))
+            except ValueError:
+                continue
+            if value > 0:
+                return value
+    return None
+
+
+def parse_source_from_text(text):
+    """Name the bank or app a message came from, for the 'read from' line."""
+    if not text:
+        return None
+    for token, label in _SOURCES:
+        if re.search(rf"\b{re.escape(token)}\b", text, re.IGNORECASE):
+            return label
+    return None
+
+
+def _safe_next(target):
+    """Allow a redirect only to a path on this site."""
+    if not target or not target.startswith("/") or target.startswith("//"):
+        return None
+    return target
 
 
 def _parse_event_form(form):
@@ -185,13 +271,32 @@ def csrf_token():
 app.jinja_env.globals["csrf_token"] = csrf_token
 
 
+def date_label(value, today_iso):
+    """The words on the quick-add date row.
+
+    Rendered server-side as well as in JS, so a browser with JavaScript blocked
+    never sees a row that says "Dated today" above a different date.
+    """
+    if not value or value == today_iso:
+        return "Dated today"
+    try:
+        chosen = date.fromisoformat(value)
+    except (ValueError, TypeError):
+        return f"Dated {value}"
+    # %-d is a glibc extension, so build the day number by hand.
+    return f"Dated {chosen.day} {chosen:%b}"
+
+
+app.jinja_env.globals["date_label"] = date_label
+
+
 _last_backup_day = None
 
 
 def _daily_backup():
     """Take one snapshot per day, on the first request that notices the date."""
     global _last_backup_day
-    today = date.today().isoformat()
+    today = timeutil.today().isoformat()
     if _last_backup_day == today:
         return
     _last_backup_day = today
@@ -361,7 +466,7 @@ def landing():
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if session.get("user_id"):
-        return redirect(url_for("landing"))
+        return redirect(url_for("profile"))
     if request.method == "GET":
         return render_template("register.html")
 
@@ -405,16 +510,19 @@ def register():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if session.get("user_id"):
-        return redirect(url_for("landing"))
+        return redirect(url_for("profile"))
+
+    target = _safe_next(request.args.get("next") or request.form.get("next"))
+
     if request.method == "GET":
-        return render_template("login.html")
+        return render_template("login.html", next=target)
 
     email = request.form.get("email", "").strip()
     password = request.form.get("password", "")
 
     if not email or not password:
         return render_template(
-            "login.html", error="All fields are required", email=email
+            "login.html", error="All fields are required", email=email, next=target
         )
 
     locked_minutes = _login_lock_remaining(email)
@@ -424,6 +532,7 @@ def login():
             error=f"Too many failed attempts. Try again in {locked_minutes} minute"
             f"{'' if locked_minutes == 1 else 's'}.",
             email=email,
+            next=target,
         )
 
     conn = get_db()
@@ -433,14 +542,14 @@ def login():
     if not user or not check_password_hash(user["password_hash"], password):
         _record_login_failure(email)
         return render_template(
-            "login.html", error="Invalid email or password", email=email
+            "login.html", error="Invalid email or password", email=email, next=target
         )
 
     _clear_login_failures(email)
     session.clear()
     session["user_id"] = user["id"]
     session["user_name"] = user["name"]
-    return redirect(url_for("landing"))
+    return redirect(target or url_for("profile"))
 
 
 @app.route("/terms")
@@ -470,7 +579,7 @@ def profile():
         return redirect(url_for("login"))
 
     user_id = session["user_id"]
-    today = date.today()
+    today = timeutil.today()
 
     preset = request.args.get("preset", "")
     custom_from = request.args.get("from", "").strip()
@@ -532,7 +641,7 @@ def expenses():
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
-    today = date.today()
+    today = timeutil.today()
     default_from = today.replace(day=1).isoformat()
     default_to = today.isoformat()
 
@@ -563,8 +672,8 @@ def add_expense():
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
-    today = date.today().isoformat()
-    events = get_events_for_user(session["user_id"])
+    today = timeutil.today().isoformat()
+    events = _quick_event_options()
 
     if request.method == "GET":
         return render_template(
@@ -630,7 +739,7 @@ def edit_expense(expense_id):
     if expense["user_id"] != session["user_id"]:
         abort(403)
 
-    events = get_events_for_user(session["user_id"])
+    events = _quick_event_options()
 
     if request.method == "GET":
         return render_template(
@@ -718,9 +827,12 @@ def events():
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
-    return render_template(
-        "events.html", events=get_events_for_user(session["user_id"])
-    )
+    event_list = get_events_for_user(session["user_id"])
+    # This page already has every event, and the sheet's picker only needs id
+    # and name — so prime the cache instead of querying a second time.
+    g.quick_event_options = [{"id": e["id"], "name": e["name"]} for e in event_list]
+
+    return render_template("events.html", events=event_list)
 
 
 @app.route("/events/new", methods=["GET", "POST"])
@@ -910,6 +1022,171 @@ def budgets():
         conn.close()
 
     return redirect(url_for("budgets"))
+
+
+
+# ------------------------------------------------------------------ #
+# Quick add — the phone screen a back-tap or a shared SMS opens       #
+# ------------------------------------------------------------------ #
+
+
+def _quick_event_options():
+    """This user's events, fetched at most once per request.
+
+    The sheet renders on every signed-in page, so this is one extra query per
+    page. It is deliberately the cheap id+name lookup rather than
+    get_events_for_user, and the per-request cache means pages that already
+    fetch events do not pay for it twice.
+    """
+    if "quick_event_options" not in g:
+        g.quick_event_options = get_event_options(session["user_id"])
+    return g.quick_event_options
+
+
+def _current_event_id():
+    """The event the sheet should default to, taken from the page you are on.
+
+    Nothing here is trusted: the picker's options come from this user's own
+    events, so an id that is not theirs simply matches no option and nothing is
+    selected, and _resolve_event_id re-checks ownership when the form is posted.
+    """
+    if request.endpoint in ("event_detail", "edit_event"):
+        return (request.view_args or {}).get("event_id")
+    if request.endpoint == "add_expense":
+        return request.args.get("event", type=int)
+    return None
+
+
+@app.context_processor
+def _quick_sheet_context():
+    """Feed the quick-add sheet that base.html renders on every signed-in page."""
+    if not session.get("user_id"):
+        return {}
+    # Named apart from `categories`, which several pages already use for their
+    # own category breakdown — a template variable shadows a context processor,
+    # and the sheet would silently render the wrong list.
+    return {
+        "quick_categories": EXPENSE_CATEGORIES,
+        "quick_events": _quick_event_options(),
+        "quick_event_id": _current_event_id(),
+        "today": timeutil.today().isoformat(),
+        # Mirrors the server-side floor onto the date inputs' min attribute.
+        # A browser convenience only — never trusted.
+        "earliest_date": (
+            timeutil.today() - timedelta(days=365 * MAX_BACKDATE_YEARS)
+        ).isoformat(),
+    }
+
+
+def _quick_prefill():
+    """Read a prefilled expense out of the query string.
+
+    Two shapes are supported: explicit fields (?amount=350&category=Food) from
+    an automation, and raw message text (?text=... or ?title=...) from the
+    phone's share sheet, which gets parsed.
+    """
+    shared = request.args.get("text") or request.args.get("title") or ""
+    source = parse_source_from_text(shared)
+
+    amount = request.args.get("amount", "").strip()
+    if not amount:
+        parsed = parse_amount_from_text(shared)
+        amount = f"{parsed:g}" if parsed else ""
+
+    category = request.args.get("category", "").strip()
+    if category not in EXPENSE_CATEGORIES:
+        category = ""
+
+    remark = (request.args.get("remark") or shared).strip()[:255]
+
+    return {
+        "amount": amount,
+        "category": category,
+        "description": remark,
+        "date": timeutil.today().isoformat(),
+    }, source
+
+
+@app.route("/quick", methods=["GET", "POST"])
+def quick_add():
+    if not session.get("user_id"):
+        return redirect(url_for("login", next=request.full_path.rstrip("?")))
+
+    user_id = session["user_id"]
+    today = timeutil.today()
+
+    if request.method == "GET":
+        values, source = _quick_prefill()
+        return render_template(
+            "quick_add.html",
+            values=values,
+            source=source,
+            saved=request.args.get("saved"),
+            **_quick_backdrop(user_id, today),
+        )
+
+    fields, amount, error = _parse_expense_form(request.form)
+    event_id = _resolve_event_id(request.form, user_id)
+    target = _safe_next(request.form.get("next"))
+
+    if error:
+        values = {
+            "amount": fields["amount_raw"],
+            "category": fields["category"],
+            "description": fields["description"] or "",
+            "date": fields["expense_date"],
+            "event_id": event_id,
+        }
+        return (
+            render_template(
+                "quick_add.html",
+                values=values,
+                error=error,
+                saved=None,
+                source=None,
+                    **_quick_backdrop(user_id, today),
+            ),
+            400,
+        )
+
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO expenses (user_id, event_id, amount, category, date, description)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                user_id,
+                event_id,
+                amount,
+                fields["category"],
+                fields["expense_date"],
+                fields["description"],
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Saving from the sheet returns you to the page you were reading; saving
+    # from /quick itself stays put, ready for the next entry.
+    if target:
+        return redirect(target)
+    return redirect(
+        url_for("quick_add", saved=f"₹{amount:,.2f} to {fields['category']}")
+    )
+
+
+def _quick_backdrop(user_id, today):
+    """The faint ledger behind the glass: this month's total and last few rows."""
+    first_day = today.replace(day=1).isoformat()
+    stats, _ = get_dashboard(user_id, first_day, today.isoformat())
+    return {
+        "month_label": today.strftime("%B"),
+        "month_total": stats["total_spent"],
+        "backdrop": get_recent_transactions(
+            user_id, limit=6, from_date=first_day, to_date=today.isoformat()
+        ),
+    }
 
 
 if __name__ == "__main__":

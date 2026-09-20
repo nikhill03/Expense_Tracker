@@ -1,0 +1,77 @@
+{#- The full expense form, shared by add and edit.
+
+    Unlike the quick-add sheet this one shows every field at once, because you
+    reach it when you are correcting something rather than racing a notification.
+-#}
+
+{% macro expense_fields(categories, events, amount, category, date_value, description, event_id, today=None, earliest=None) %}
+<div>
+    <label for="amount" class="field-label">Amount</label>
+    <div class="relative">
+        <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" aria-hidden="true">₹</span>
+        <input type="number" id="amount" name="amount" class="field pl-7"
+               inputmode="decimal" step="0.01" min="0.01" required
+               value="{{ amount }}" placeholder="0.00">
+    </div>
+</div>
+
+<fieldset class="mt-5">
+    <legend class="field-label">Category</legend>
+    <div class="flex flex-wrap gap-2">
+        {% for cat in categories %}
+        <label class="chip">
+            <input type="radio" name="category" value="{{ cat }}" required
+                   {% if category == cat %}checked{% endif %}>
+            {{ cat }}
+        </label>
+        {% endfor %}
+    </div>
+</fieldset>
+
+<div class="mt-5">
+    <label for="date" class="field-label">Date</label>
+    {# Mirrors the server's bounds so the browser refuses an out-of-range date
+       before the round-trip. Convenience only — the server revalidates. #}
+    <input type="date" id="date" name="date" class="field" required value="{{ date_value }}"
+           {% if earliest %}min="{{ earliest }}"{% endif %}{% if today %} max="{{ today }}"{% endif %}>
+</div>
+
+{% if events %}
+<div class="mt-5">
+    <label for="event_id" class="field-label">Event <span class="font-normal text-ink-3">(optional)</span></label>
+    <select id="event_id" name="event_id" class="field">
+        <option value="">Not part of an event</option>
+        {% for event in events %}
+        <option value="{{ event.id }}" {% if event_id == event.id %}selected{% endif %}>{{ event.name }}</option>
+        {% endfor %}
+    </select>
+</div>
+{% endif %}
+
+<div class="mt-5">
+    <label for="description" class="field-label">Remark <span class="font-normal text-ink-3">(optional)</span></label>
+    <input type="text" id="description" name="description" class="field"
+           maxlength="255" value="{{ description }}" placeholder="What was it for?">
+</div>
+{% endmacro %}
+
+
+{#- Page chrome shared by every single-form screen. -#}
+{% macro form_page(title, back_href, back_label, error=None) %}
+<div class="shell max-w-md! pb-16 pt-7">
+    {% if back_href %}
+    <a href="{{ back_href }}" class="link-quiet link-tap gap-1">
+        <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+        {{ back_label }}
+    </a>
+    {% endif %}
+    <h1 class="mt-3 font-display text-2xl font-bold tracking-tight">{{ title }}</h1>
+    {% if error %}
+    <p class="notice notice-error mt-5" role="alert">
+        <svg viewBox="0 0 20 20" class="mt-px h-4 w-4 shrink-0" fill="currentColor" aria-hidden="true"><path d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 4a1 1 0 0 1 1 1v4a1 1 0 1 1-2 0V7a1 1 0 0 1 1-1zm0 9.2a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4z"/></svg>
+        {{ error }}
+    </p>
+    {% endif %}
+    {{ caller() }}
+</div>
+{% endmacro %}

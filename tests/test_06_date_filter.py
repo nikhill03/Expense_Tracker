@@ -211,11 +211,11 @@ class TestExpensesHappyPath:
         resp = client.get("/expenses")
         assert resp.status_code == 200
 
-    def test_expenses_page_shows_my_expenses_heading(self, logged_in_client):
-        """The expenses page must include the heading 'My Expenses'."""
+    def test_expenses_page_shows_history_heading(self, logged_in_client):
+        """The expenses page must be titled for what it holds."""
         client, _, _ = logged_in_client
         resp = client.get("/expenses")
-        assert b"My Expenses" in resp.data
+        assert b"History" in resp.data
 
     def test_expenses_page_shows_rupee_symbol(self, logged_in_client):
         """All currency amounts on the page must display the ₹ symbol."""
@@ -223,11 +223,15 @@ class TestExpensesHappyPath:
         resp = client.get("/expenses")
         assert "₹".encode() in resp.data
 
-    def test_expenses_page_shows_add_expense_button(self, logged_in_client):
-        """The page header must include a link/button labelled '+ Add Expense'."""
+    def test_expenses_page_offers_a_way_to_add_an_expense(self, logged_in_client):
+        """Adding an expense is reachable from here.
+
+        The affordance moved into the bottom tab bar, where a thumb can reach
+        it, so the test checks the control exists rather than where it sits.
+        """
         client, _, _ = logged_in_client
         resp = client.get("/expenses")
-        assert b"Add Expense" in resp.data
+        assert b"Add an expense" in resp.data
 
     def test_expenses_page_shows_filter_form_with_get_method(self, logged_in_client):
         """The date filter form must use method='get'."""
@@ -254,7 +258,7 @@ class TestExpensesHappyPath:
         """The page must display a filtered total prefixed with 'Total:'."""
         client, _, _ = logged_in_client
         resp = client.get("/expenses")
-        assert b"Total:" in resp.data
+        assert b"Total" in resp.data
 
     def test_expenses_page_table_has_date_column(self, logged_in_client):
         """The expense table must have a 'Date' column header."""
@@ -496,7 +500,7 @@ class TestExpensesEmptyState:
         client, _, _ = logged_in_client
         # Use a future date range guaranteed to contain no seeded data
         resp = client.get("/expenses?from=2099-01-01&to=2099-01-31")
-        assert b"No expenses found for this date range." in resp.data
+        assert b"No expenses in this date range" in resp.data
 
     def test_expenses_empty_state_total_is_zero(self, logged_in_client):
         """
@@ -531,8 +535,8 @@ class TestExpensesCategoryBadges:
         client, _, _ = logged_in_client
         resp = client.get("/expenses")
         body = resp.data.decode()
-        # The template applies 'badge badge--' prefix for every category cell
-        assert "badge badge--" in body
+        # Categories render as a class-based tag, never an inline colour.
+        assert 'class="tag"' in body
 
     def test_expenses_food_badge_class(self, logged_in_client):
         """
@@ -541,7 +545,7 @@ class TestExpensesCategoryBadges:
         client, _, _ = logged_in_client
         resp = client.get("/expenses")
         body = resp.data.decode()
-        assert "badge--food" in body
+        assert ">Food<" in body
 
     def test_expenses_transport_badge_class(self, logged_in_client):
         """
@@ -550,7 +554,7 @@ class TestExpensesCategoryBadges:
         client, _, _ = logged_in_client
         resp = client.get("/expenses")
         body = resp.data.decode()
-        assert "badge--transport" in body
+        assert ">Transport<" in body
 
     def test_expenses_badge_does_not_use_inline_style_for_colour(self, logged_in_client):
         """
@@ -563,8 +567,9 @@ class TestExpensesCategoryBadges:
         body = resp.data.decode()
         # Count <span class="badge badge--..."> occurrences to confirm class-based approach
         import re
-        badge_spans = re.findall(r'class="badge badge--[\w-]+"', body)
-        assert len(badge_spans) > 0, "Expected at least one badge span with CSS class."
+        tag_spans = re.findall(r'<span class="tag">', body)
+        assert len(tag_spans) > 0, "Expected at least one category tag with a CSS class."
+        assert "background-color:" not in body
 
 
 # ------------------------------------------------------------------ #

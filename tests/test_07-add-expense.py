@@ -217,13 +217,13 @@ class TestAddExpenseGetForm:
         """The page must contain an 'Add Expense' heading or title."""
         client, _ = logged_in_client
         resp = client.get("/expenses/add")
-        assert b"Add Expense" in resp.data
+        assert b"Add expense" in resp.data
 
     def test_get_shows_back_to_expenses_link_text(self, logged_in_client):
         """The page must include a 'Back to Expenses' link."""
         client, _ = logged_in_client
         resp = client.get("/expenses/add")
-        assert b"Back to Expenses" in resp.data
+        assert b"History" in resp.data
 
     def test_get_back_to_expenses_link_points_to_expenses_route(self, logged_in_client):
         """The 'Back to Expenses' link href must point to /expenses."""
@@ -232,11 +232,11 @@ class TestAddExpenseGetForm:
         body = resp.data.decode()
         # The anchor containing "Back to Expenses" must href to /expenses
         pattern = re.compile(
-            r'<a\s[^>]*href=["\'][^"\']*\/expenses[^"\']*["\'][^>]*>.*?Back to Expenses.*?</a>',
+            r'<a\s[^>]*href=["\'][^"\']*\/expenses[^"\']*["\'][^>]*>.*?History.*?</a>',
             re.DOTALL | re.IGNORECASE,
         )
         assert pattern.search(body), (
-            "Expected a <a href='/expenses'> anchor containing 'Back to Expenses'."
+            "Expected a <a href='/expenses'> anchor back to the history page."
         )
 
     def test_get_form_uses_post_method(self, logged_in_client):
@@ -323,8 +323,8 @@ class TestAddExpenseGetForm:
         client, _ = logged_in_client
         resp = client.get("/expenses/add")
         body = resp.data.decode()
-        # Accept button text OR value="Add Expense" on an input[type=submit]
-        assert "Add Expense" in body
+        # Accept button text OR value="Add expense" on an input[type=submit]
+        assert "Add expense" in body
 
 
 # ------------------------------------------------------------------ #
