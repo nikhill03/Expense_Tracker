@@ -48,7 +48,7 @@ site with no styles.
 |---|---|---|
 | `APP_ENV` | `development` | `production` requires a real `SECRET_KEY`, sends `Secure` cookies, trusts the proxy headers, and never seeds the sample data or demo login. |
 | `SECRET_KEY` | a placeholder, development only | Signs the session cookie. **Required in production** — the app refuses to start without it, rather than falling back to a value that is in this repo. |
-| `DATABASE_PATH` | `expense_tracker.db` | SQLite file location. Point at a mounted volume in production so data survives a redeploy. Daily backups are written to a `backups/` directory beside it. |
+| `DATABASE_PATH` | `expense_tracker.db` | SQLite file location. In production point it outside the code directory (`/var/lib/bahikhata/…`) so a deploy never touches it. Daily backups are written to a `backups/` directory beside it. |
 | `APP_TIMEZONE` | `Asia/Kolkata` | The calendar day the app uses. Set this to the users' zone, not the server's — see below. |
 | `ALLOW_REGISTRATION` | `true` | Set to `false` to close `/register` on a public instance; the sign-up links disappear with it. |
 | `PORT` | `5001` | Port to bind. |
@@ -62,13 +62,23 @@ user-facing dates go through `timeutil.today()`; never `date.today()`.
 
 ## Deploying
 
-The app runs on Railway: gunicorn from the `Procfile`, SQLite on a volume mounted at
-`/data`, `/healthz` as the healthcheck. Set `APP_ENV=production`, a real `SECRET_KEY`
-and `DATABASE_PATH=/data/expense_tracker.db`, or the deploy will either refuse to
-start or throw the data away on the next redeploy.
+The app is self-hosted on a small VM: gunicorn behind Caddy, SQLite on the machine's
+own disk. `deploy/` holds the systemd unit, the Caddyfile, and two scripts —
+`bootstrap.sh` for a fresh server and `update.sh` for routine deploys.
 
-Full runbook — variables, volume, rollback, restoring a backup, rotating the secret:
-**`docs/DEPLOYMENT.md`**.
+```bash
+sudo BAHIKHATA_HOST=your.hostname ./deploy/bootstrap.sh   # first time
+sudo /opt/bahikhata/deploy/update.sh                      # every deploy after
+```
+
+Production needs `APP_ENV=production`, a real `SECRET_KEY` and a `DATABASE_PATH`
+outside the code directory, or the app refuses to start.
+
+A managed platform was ruled out deliberately: SQLite with WAL needs a real local
+disk, and the free tiers offer either no persistent disk or an NFS one.
+
+Full runbook — variables, first deploy, rollback, restoring a backup, rotating the
+secret: **`docs/DEPLOYMENT.md`**.
 
 ## Testing
 
@@ -97,6 +107,7 @@ templates/             Jinja2; partials are prefixed with _
 static/css/src/        Tailwind source (the design system)
 static/css/app.css     compiled output — committed, do not edit by hand
 scripts/ui_audit.py    browser-driven accessibility and layout checks
+deploy/                systemd unit, Caddyfile, server setup and update scripts
 docs/                  architecture notes and the deployment runbook
 ```
 

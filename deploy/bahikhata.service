@@ -1,0 +1,53 @@
+## Bahi-Khata — gunicorn behind Caddy.
+##
+## Install to /etc/systemd/system/bahikhata.service. See docs/DEPLOYMENT.md.
+##
+## Binds to localhost only: Caddy holds 80/443 and terminates TLS, so nothing
+## reaches gunicorn except through the proxy.
+
+[Unit]
+Description=Bahi-Khata expense tracker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=bahikhata
+Group=bahikhata
+WorkingDirectory=/opt/bahikhata
+
+# SECRET_KEY lives here, not in the repo and not in this file. 0600, root-owned.
+EnvironmentFile=/etc/bahikhata/bahikhata.env
+
+ExecStart=/opt/bahikhata/.venv/bin/gunicorn app:app \
+    --bind 127.0.0.1:8000 \
+    --workers 1 \
+    --threads 4 \
+    --timeout 60 \
+    --access-logfile - \
+    --error-logfile -
+
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=3
+
+# One writable directory, and it is the data one. Everything else — including the
+# code in /opt/bahikhata — is read-only to the app, so a bug cannot rewrite the
+# app that is running.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/bahikhata
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bahikhata
+
+[Install]
+WantedBy=multi-user.target
