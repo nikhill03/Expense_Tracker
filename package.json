@@ -1,0 +1,15 @@
+{
+  "name": "bahi-khata",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build tooling for Bahi-Khata's stylesheet. Python/Flask is the app; this only compiles CSS.",
+  "scripts": {
+    "build:css": "tailwindcss -i ./static/css/src/app.css -o ./static/css/app.css --minify",
+    "watch:css": "tailwindcss -i ./static/css/src/app.css -o ./static/css/app.css --watch",
+    "dev": "npm run watch:css"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.14",
+    "tailwindcss": "^4.1.14"
+  }
+}

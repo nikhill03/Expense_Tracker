@@ -8,3 +8,6 @@ __pycache__/
 .env
 .DS_Store
 .claude/plans/
+
+# Stylesheet build tooling (static/css/app.css IS committed — see CLAUDE.md)
+node_modules/

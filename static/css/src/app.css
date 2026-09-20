@@ -1,0 +1,759 @@
+@import "tailwindcss";
+
+/* Jinja templates are the only place class names appear. Paths are relative to
+   this file (static/css/src/). */
+@source "../../../templates";
+@source "../../js";
+
+/* Theme is resolved to an explicit attribute before first paint (see the inline
+   script in base.html), so the dark variant never needs a media query. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ------------------------------------------------------------------ */
+/* Design tokens                                                       */
+/* ------------------------------------------------------------------ */
+/* Every token is semantic (paper, ink, rule) rather than literal (white,
+   gray-900). @theme maps them onto Tailwind's utility namespaces, so
+   `bg-paper` and `text-ink` follow the active theme with no `dark:` prefix.
+   Only the raw --c-* values below are ever restated per theme. */
+
+@theme {
+  --color-paper: var(--c-paper);
+  --color-surface: var(--c-surface);
+  --color-sunken: var(--c-sunken);
+
+  --color-ink: var(--c-ink);
+  --color-ink-2: var(--c-ink-2);
+  --color-ink-3: var(--c-ink-3);
+
+  --color-rule: var(--c-rule);
+  --color-rule-soft: var(--c-rule-soft);
+
+  --color-lac: var(--c-lac);
+  --color-lac-ink: var(--c-lac-ink);
+  --color-lac-wash: var(--c-lac-wash);
+
+  --color-good: var(--c-good);
+  --color-good-wash: var(--c-good-wash);
+  --color-warn: var(--c-warn);
+  --color-warn-wash: var(--c-warn-wash);
+
+  --font-display: "Bricolage Grotesque", "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Major-second-ish scale, tuned so 16px body stays the reading size on a phone. */
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1rem;
+  --text-tiny: 0.8125rem;
+  --text-tiny--line-height: 1.15rem;
+  --text-amount: 1.375rem;
+  --text-amount--line-height: 1.1;
+  --text-hero: clamp(2.75rem, 13vw, 4.5rem);
+  --text-hero--line-height: 0.92;
+
+  --radius-sheet: 1.75rem;
+  --radius-field: 0.875rem;
+
+  --ease-rise: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Bottom tab bar height, used by page padding and the sheet alike. */
+  --spacing-tabbar: 4.25rem;
+}
+
+:root {
+  --c-paper: #fafaf8;
+  --c-surface: #ffffff;
+  --c-sunken: #f2f1ed;
+
+  --c-ink: #181828;
+  --c-ink-2: #4a4a5e;
+  --c-ink-3: #6e6e82;
+
+  --c-rule: #e7e5e0;
+  --c-rule-soft: #f0eeea;
+
+  --c-lac: #b3281f;
+  --c-lac-ink: #b3281f;
+  --c-lac-wash: #fdf0ee;
+
+  --c-good: #1f7a4d;
+  --c-good-wash: #eef7f2;
+  --c-warn: #8a6206;
+  --c-warn-wash: #fbf4e6;
+
+  /* Glass is a different recipe per theme: a light sheet tints toward white and
+     needs more blur to stay legible; a dark one tints toward the night surface. */
+  --glass-tint: rgb(255 255 255 / 0.72);
+  --glass-edge: rgb(255 255 255 / 0.9);
+  --glass-shadow: 0 -1px 0 rgb(255 255 255 / 0.6), 0 -18px 50px -12px rgb(24 24 40 / 0.18);
+
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --c-paper: #14141f;
+  --c-surface: #1d1d2b;
+  --c-sunken: #232333;
+
+  --c-ink: #f2f1f6;
+  --c-ink-2: #b6b4c6;
+  --c-ink-3: #8c8aa0;
+
+  --c-rule: #2c2c3d;
+  --c-rule-soft: #242433;
+
+  --c-lac: #ff8478;
+  --c-lac-ink: #ff8478;
+  --c-lac-wash: #2b1d22;
+
+  --c-good: #4abe82;
+  --c-good-wash: #14291f;
+  --c-warn: #e5ae2e;
+  --c-warn-wash: #2a2416;
+
+  --glass-tint: rgb(29 29 43 / 0.72);
+  --glass-edge: rgb(255 255 255 / 0.12);
+  --glass-shadow: 0 -1px 0 rgb(255 255 255 / 0.08), 0 -18px 50px -12px rgb(0 0 0 / 0.55);
+
+  color-scheme: dark;
+}
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-synthesis-weight: none;
+    -webkit-font-smoothing: antialiased;
+    /* Stops iOS rubber-banding from showing white behind a dark page. */
+    overscroll-behavior-y: none;
+  }
+
+  /* Every figure in this app sits in a column that has to line up, so tabular
+     figures are the default rather than an opt-in. */
+  body {
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-lac);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Native controls should follow the theme rather than render light-on-light. */
+  input, select, textarea, button {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* The calendar picker glyph is invisible on a dark field in Chrome. */
+  [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) opacity(0.65);
+  }
+
+  ::selection {
+    background: var(--color-lac);
+    color: var(--color-paper);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Components                                                          */
+/* ------------------------------------------------------------------ */
+
+@layer components {
+
+  /* -- The ledger column ------------------------------------------- */
+  /* One measure for the whole app. Body copy never exceeds ~68ch. */
+  .shell {
+    width: 100%;
+    max-width: 34rem;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+  }
+
+  @media (min-width: 1024px) {
+    .shell { max-width: 60rem; }
+    .shell--wide { max-width: 72rem; }
+  }
+
+  /* -- Ruled rows: the core structural device ----------------------- */
+  /* A bahi page is ruled lines, not a deck of cards. Rows share one hairline
+     between them and the group carries the outer edge. */
+  .ruled > * + * {
+    border-top: 1px solid var(--color-rule-soft);
+  }
+
+  .ruled-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    gap: 0.25rem 1rem;
+    padding-block: 0.8125rem;
+    container-type: inline-size;
+  }
+
+  /* -- Amounts ------------------------------------------------------ */
+  .amount {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+
+  /* -- Panel: a quiet bounded region, used sparingly ---------------- */
+  .panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-rule);
+    border-radius: 1.25rem;
+  }
+
+  /* -- Glass ------------------------------------------------------- */
+  /* Reserved for surfaces that float over content: the quick-add sheet, the
+     bottom tab bar, the sticky header. Never decorative. */
+  .glass {
+    background: var(--glass-tint);
+    border-top: 1px solid var(--glass-edge);
+  }
+
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    .glass {
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      backdrop-filter: blur(24px) saturate(180%);
+    }
+  }
+
+  /* Without backdrop-filter (older Firefox, forced-colors) the tint alone is
+     too sheer to read against, so fall back to the solid surface. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass { background: var(--color-surface); }
+  }
+
+  /* -- Buttons ------------------------------------------------------ */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    /* 44px minimum target, per WCAG 2.5.8. */
+    min-height: 2.75rem;
+    padding-inline: 1.125rem;
+    border-radius: var(--radius-field);
+    font-weight: 600;
+    font-size: 0.9375rem;
+    line-height: 1;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background-color 0.18s, border-color 0.18s, color 0.18s, transform 0.12s;
+    text-align: center;
+  }
+
+  .btn:active { transform: translateY(1px); }
+
+  .btn-primary {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+
+  .btn-primary:hover { background: color-mix(in oklab, var(--color-ink) 86%, var(--color-lac)); }
+
+  .btn-accent {
+    background: var(--color-lac);
+    color: #fff;
+  }
+
+  [data-theme="dark"] .btn-accent { color: #2b1012; }
+
+  .btn-accent:hover { background: color-mix(in oklab, var(--color-lac) 88%, black); }
+
+  .btn-quiet {
+    background: transparent;
+    border-color: var(--color-rule);
+    color: var(--color-ink-2);
+  }
+
+  .btn-quiet:hover {
+    border-color: var(--color-ink-3);
+    color: var(--color-ink);
+  }
+
+  .btn-block { width: 100%; }
+
+  /* -- Fields ------------------------------------------------------- */
+  .field {
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.625rem 0.875rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-field);
+    /* 16px keeps iOS Safari from zooming the viewport on focus. */
+    font-size: 1rem;
+    color: var(--color-ink);
+    transition: border-color 0.18s, box-shadow 0.18s;
+  }
+
+  .field::placeholder { color: var(--color-ink-3); }
+
+  .field:focus {
+    outline: none;
+    border-color: var(--color-lac);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-lac) 18%, transparent);
+  }
+
+  .field-label {
+    display: block;
+    font-size: var(--text-tiny);
+    font-weight: 600;
+    color: var(--color-ink-2);
+    margin-bottom: 0.375rem;
+  }
+
+  /* -- Chips: the touch-first replacement for <select> --------------- */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* 44px, same floor as .btn — these are the primary controls on a phone. */
+    min-height: 2.75rem;
+    padding-inline: 0.9375rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-rule);
+    background: var(--color-surface);
+    color: var(--color-ink-2);
+    font-size: 0.875rem;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.16s, border-color 0.16s, color 0.16s;
+  }
+
+  .chip:hover { border-color: var(--color-ink-3); color: var(--color-ink); }
+
+  .chip[aria-pressed="true"],
+  .chip[aria-current="true"],
+  .chip:has(> input:checked) {
+    background: var(--color-ink);
+    border-color: var(--color-ink);
+    color: var(--color-paper);
+  }
+
+  /* The real radio stays in the DOM for keyboard and screen readers; the chip
+     is its label. */
+  .chip > input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .chip:has(> input:focus-visible) {
+    outline: 2px solid var(--color-lac);
+    outline-offset: 2px;
+  }
+
+  /* -- Date row: a sentence with a native picker behind it ------------ */
+  /* The date is almost always today, so the row reads as words rather than a
+     field. The real input lies transparently on top, so a single tap opens the
+     OS picker with no script involved. */
+  .date-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    /* Same 44px floor as .btn and .chip — this is a control. */
+    min-height: 2.75rem;
+    font-size: var(--text-tiny);
+    font-weight: 600;
+    color: var(--color-ink-3);
+    cursor: pointer;
+    transition: color 0.16s;
+  }
+
+  .date-row:hover { color: var(--color-ink); }
+
+  .date-row > input[type="date"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    cursor: pointer;
+    /* iOS sizes a date input intrinsically unless its native chrome is off, so
+       without this it refuses to stretch across the row. */
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+  }
+
+  /* The input is invisible, so the row has to carry its focus ring. */
+  .date-row:has(> input:focus-visible) {
+    outline: 2px solid var(--color-lac);
+    outline-offset: 4px;
+    border-radius: 6px;
+  }
+
+  /* -- Category tag (identity lives in the text, not the colour) ----- */
+  .tag {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.375rem;
+    background: var(--color-sunken);
+    color: var(--color-ink-2);
+    font-size: var(--text-micro);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .tag-event {
+    background: var(--color-lac-wash);
+    color: var(--color-lac-ink);
+  }
+
+  /* -- Meter: magnitude, one hue -------------------------------------- */
+  /* Seven categories get one hue, not seven. The category is already named
+     beside its bar, so a second colour channel would carry no information.
+     Colour here is reserved for budget status. */
+  .meter {
+    height: 0.375rem;
+    border-radius: 999px;
+    background: var(--color-sunken);
+    overflow: hidden;
+  }
+
+  .meter > span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--color-ink-2);
+    transition: width 0.5s var(--ease-rise);
+  }
+
+  .meter-good > span { background: var(--color-good); }
+  .meter-warn > span { background: var(--color-warn); }
+  .meter-over > span { background: var(--color-lac); }
+
+  /* -- Status note: colour always travels with a glyph and words ------ */
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: var(--text-tiny);
+    font-weight: 600;
+  }
+
+  .status-good { color: var(--color-good); }
+  .status-warn { color: var(--color-warn); }
+  .status-over { color: var(--color-lac-ink); }
+
+  /* -- Section heading ---------------------------------------------- */
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 1.0625rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  .link-quiet {
+    font-size: var(--text-tiny);
+    font-weight: 600;
+    color: var(--color-lac-ink);
+  }
+
+  /* A link that stands on its own still needs a thumb-sized target; one that
+     sits inside a sentence does not, because it flows with the text. */
+  .link-tap {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+
+  /* <summary> is a control, so it gets the same floor. */
+  .summary-tap {
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .summary-tap::-webkit-details-marker { display: none; }
+
+  .link-quiet:hover { text-decoration: underline; }
+
+  /* -- Notice ------------------------------------------------------- */
+  .notice {
+    display: flex;
+    gap: 0.625rem;
+    padding: 0.75rem 0.875rem;
+    border-radius: var(--radius-field);
+    font-size: 0.875rem;
+    border: 1px solid transparent;
+  }
+
+  .notice-error {
+    background: var(--color-lac-wash);
+    border-color: color-mix(in oklab, var(--color-lac) 28%, transparent);
+    color: var(--color-lac-ink);
+  }
+
+  .notice-good {
+    background: var(--color-good-wash);
+    border-color: color-mix(in oklab, var(--color-good) 28%, transparent);
+    color: var(--color-good);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Utilities                                                           */
+/* ------------------------------------------------------------------ */
+
+@utility tap-safe {
+  /* Removes the 300ms grey flash on Android/iOS taps. */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+@utility scroll-row {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  /* Let the row bleed to the screen edges while its items stay in the column. */
+  margin-inline: -1.25rem;
+  padding-inline: 1.25rem;
+}
+
+@utility scroll-row-item {
+  scroll-snap-align: start;
+  flex: none;
+}
+
+@utility lazy-rows {
+  /* Skips layout and paint for transaction rows below the fold. The size hint
+     keeps the scrollbar honest. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 4.5rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* The quick-add sheet — the one place motion and depth are spent      */
+/* ------------------------------------------------------------------ */
+
+.sheet {
+  /* Uses the native popover API: top layer, light dismiss and Esc for free. */
+  position: fixed;
+  inset: auto 0 0 0;
+  width: 100%;
+  max-width: 34rem;
+  margin-inline: auto;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  box-shadow: var(--glass-shadow);
+  color: var(--color-ink);
+  max-height: 92dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sheet::backdrop {
+  background: rgb(10 10 18 / 0.45);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+/* Closed -> open. @starting-style supplies the "from" frame so the sheet can
+   animate in from display:none without JS. */
+@media (prefers-reduced-motion: no-preference) {
+  .sheet {
+    transition:
+      translate 0.42s var(--ease-rise),
+      opacity 0.28s ease,
+      overlay 0.42s allow-discrete,
+      display 0.42s allow-discrete;
+    translate: 0 0;
+    opacity: 1;
+  }
+
+  @starting-style {
+    .sheet:popover-open { translate: 0 100%; opacity: 0; }
+  }
+
+  .sheet:not(:popover-open) { translate: 0 100%; opacity: 0; }
+
+  .sheet::backdrop {
+    transition:
+      background-color 0.42s ease,
+      backdrop-filter 0.42s ease,
+      overlay 0.42s allow-discrete,
+      display 0.42s allow-discrete;
+  }
+
+  @starting-style {
+    .sheet:popover-open::backdrop { background: rgb(10 10 18 / 0); backdrop-filter: blur(0); }
+  }
+
+  .sheet:not(:popover-open)::backdrop { background: rgb(10 10 18 / 0); backdrop-filter: blur(0); }
+}
+
+.sheet-grip {
+  width: 2.25rem;
+  height: 0.25rem;
+  border-radius: 999px;
+  background: var(--color-ink-3);
+  opacity: 0.4;
+  margin: 0.75rem auto 0;
+}
+
+/* The amount field on the quick-add sheet is the largest type in the app. */
+.amount-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: var(--text-hero);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  color: var(--color-ink);
+  padding: 0;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.amount-input::placeholder { color: var(--color-ink-3); opacity: 0.35; }
+
+/* Spinners steal width and nobody taps them on a phone. */
+.amount-input::-webkit-outer-spin-button,
+.amount-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.amount-input { -moz-appearance: textfield; appearance: textfield; }
+
+/* ------------------------------------------------------------------ */
+/* Bottom tab bar                                                      */
+/* ------------------------------------------------------------------ */
+
+.tabbar {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+  /* Clears the iOS home indicator and Android gesture bar. */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1875rem;
+  min-height: var(--spacing-tabbar);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  color: var(--color-ink-3);
+  transition: color 0.16s;
+}
+
+.tab[aria-current="page"] { color: var(--color-ink); }
+
+.tab svg { width: 1.375rem; height: 1.375rem; }
+
+/* The centre action: a ledger-red disc, raised out of the bar. */
+.tab-add {
+  color: #fff;
+  background: var(--color-lac);
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 999px;
+  justify-self: center;
+  min-height: 0;
+  gap: 0;
+  box-shadow: 0 6px 18px -4px color-mix(in oklab, var(--color-lac) 55%, transparent);
+  transition: transform 0.16s var(--ease-rise), box-shadow 0.16s;
+}
+
+[data-theme="dark"] .tab-add { color: #2b1012; }
+
+.tab-add:active { transform: scale(0.94); }
+
+/* ------------------------------------------------------------------ */
+/* Cross-document view transitions (MPA)                               */
+/* ------------------------------------------------------------------ */
+
+@view-transition { navigation: auto; }
+
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root) { animation: vt-out 0.16s ease both; }
+  ::view-transition-new(root) { animation: vt-in 0.22s var(--ease-rise) both; }
+}
+
+@keyframes vt-out { to { opacity: 0; } }
+@keyframes vt-in { from { opacity: 0; translate: 0 6px; } }
+
+/* The bar and header stay put while the page body transitions under them. */
+.tabbar, .topbar { view-transition-name: none; }
+
+/* ------------------------------------------------------------------ */
+/* Reduced motion & forced colours                                     */
+/* ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
+}
+
+@media (forced-colors: active) {
+  .glass, .sheet, .tabbar { background: Canvas; backdrop-filter: none; }
+  .meter > span { background: Highlight; }
+  .chip[aria-pressed="true"], .chip:has(> input:checked) {
+    background: Highlight;
+    color: HighlightText;
+  }
+  .btn { border-color: ButtonText; }
+}
+
+@media print {
+  .tabbar, .topbar, .sheet, .no-print { display: none !important; }
+}
