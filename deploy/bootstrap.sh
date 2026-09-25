@@ -100,9 +100,10 @@ systemctl enable --quiet caddy
 systemctl reload caddy || systemctl restart caddy
 
 say "Opening ports 80 and 443"
-# Oracle's Ubuntu images ship an iptables ruleset that drops everything except
-# SSH, and it is not ufw. Opening the VCN security list alone is not enough —
-# this is the single most common reason an Oracle VM looks dead from outside.
+# Only some hosts need this. GCP filters at the VPC, so its Ubuntu images have
+# no local rules and both branches below are a no-op. Oracle's images ship an
+# iptables ruleset that drops everything but SSH, and it is not ufw — the single
+# most common reason a new Oracle VM looks dead from outside.
 if command -v netfilter-persistent >/dev/null; then
     iptables -C INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || \
         iptables -I INPUT 6 -p tcp --dport 80 -j ACCEPT
@@ -121,5 +122,6 @@ echo
 echo "Check the boot line:   journalctl -u bahikhata -n 20 --no-pager | grep starting"
 echo "Check health:          curl -s https://$BAHIKHATA_HOST/healthz"
 echo
-echo "Still to do in the Oracle console: allow ingress on TCP 80 and 443 in the"
-echo "VCN security list for this instance's subnet, or nothing reaches the box."
+echo "Still to do at the cloud level: allow inbound TCP 80 and 443, or nothing"
+echo "reaches this box. On GCP that is a VPC firewall rule targeting the"
+echo "http-server / https-server tags; on Oracle, the VCN security list."

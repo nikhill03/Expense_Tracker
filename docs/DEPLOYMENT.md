@@ -37,8 +37,12 @@ SQLite needs a real, local, POSIX-locking disk. The free tiers that host Python
 either give no persistent disk at all (Render, Koyeb — the database would be
 wiped on every restart) or put the filesystem on NFS (PythonAnywhere), where
 `journal_mode=WAL` risks corrupting the file. WAL is a deliberate choice here
-(`ARCHITECTURE_REVIEW.md` §3.4), so the host has to have a real disk. An Oracle
-Cloud Always Free VM does, indefinitely, for ₹0.
+(`ARCHITECTURE_REVIEW.md` §3.4), so the host has to have a real disk.
+
+The target is a **Google Cloud `e2-micro`**, which is Always Free with no expiry
+and a real persistent disk. Nothing below is GCP-specific except §3 — the unit
+file, the proxy config and the scripts work on any Ubuntu VM with a real disk,
+which is the point.
 
 ## 2. Environment variables
 
@@ -60,10 +64,39 @@ After editing the file: `sudo systemctl restart bahikhata`.
 
 ### 3.1 The VM
 
-1. Create an **Always Free** instance in Oracle Cloud. Either shape works — the
-   Ampere ARM one if there is capacity, the AMD micro otherwise. Ubuntu image.
-2. Save the SSH private key it offers. You cannot download it again.
-3. Note the public IP.
+Everything here runs in Cloud Shell, which has `gcloud` pre-authenticated.
+
+**Stay inside Always Free or it costs money.** The flags below are the whole of
+it: `e2-micro`, one of `us-central1` / `us-west1` / `us-east1`, and at most 30 GB
+of `pd-standard`. A nearer region is not free; `pd-ssd` is not free.
+
+```bash
+gcloud compute instances create bahikhata \
+  --zone=us-central1-a --machine-type=e2-micro \
+  --image-family=ubuntu-2404-lts-amd64 --image-project=ubuntu-os-cloud \
+  --boot-disk-size=30GB --boot-disk-type=pd-standard \
+  --tags=http-server,https-server
+```
+
+**If this fails with `Constraint constraints/compute.vmExternalIpAccess violated`**,
+the organization denies public IPs on VMs — the secure-by-default policy on new
+Cloud Identity orgs. Allow it for this one instance and nothing else:
+
+```bash
+gcloud resource-manager org-policies allow compute.vmExternalIpAccess \
+  projects/<PROJECT_ID>/zones/us-central1-a/instances/bahikhata \
+  --project=<PROJECT_ID>
+```
+
+That needs `roles/orgpolicy.policyAdmin`, which even an org owner may have to
+grant themselves first.
+
+Then read the public IP:
+
+```bash
+gcloud compute instances describe bahikhata --zone=us-central1-a \
+  --format='get(networkInterfaces[0].accessConfigs[0].natIP)'
+```
 
 ### 3.2 A hostname
 
@@ -74,25 +107,32 @@ TLS needs a name, not an IP. A free DuckDNS subdomain is enough:
 
 A domain you own works the same way — point an A record at the IP.
 
-### 3.3 Open the ports — both places
+### 3.3 Open the ports
 
-This is the step that wastes an afternoon if missed. Oracle's VMs are firewalled
-**twice**:
+GCP firewalls at the VPC, not on the instance — the `--tags=http-server,https-server`
+above only marks the VM as a target, so the rules still have to exist:
 
-1. **VCN security list** (Oracle console): add ingress rules allowing TCP 80 and
-   443 from `0.0.0.0/0` on the instance's subnet.
-2. **The instance's own iptables**: Oracle's Ubuntu images drop everything but
-   SSH, and it is not ufw. `bootstrap.sh` handles this one.
+```bash
+gcloud compute firewall-rules create allow-http  --allow=tcp:80  --target-tags=http-server
+gcloud compute firewall-rules create allow-https --allow=tcp:443 --target-tags=https-server
+```
 
-If the site is unreachable and Caddy looks healthy, it is almost always step 1.
+`already exists` here is fine — some projects ship them by default.
+
+If the site is unreachable while Caddy looks healthy, this is the first thing to
+check. (On Oracle there is a second, instance-level iptables to open as well;
+`bootstrap.sh` handles that case and is a no-op on GCP.)
 
 ### 3.4 Run the bootstrap
 
 ```bash
-ssh ubuntu@<public-ip>
+gcloud compute ssh bahikhata --zone=us-central1-a
 git clone https://github.com/nikhill03/Expense_Tracker.git /tmp/bk
 sudo BAHIKHATA_HOST=bahikhata.duckdns.org /tmp/bk/deploy/bootstrap.sh
 ```
+
+`gcloud compute ssh` generates and installs the key on first use, so there is no
+key file to manage.
 
 It installs packages and Caddy, creates the `bahikhata` user and directories,
 clones the repo to `/opt/bahikhata`, builds the virtualenv, generates a
@@ -196,11 +236,12 @@ reason to do it routinely.
 ## 9. Getting the data off the box
 
 The one real gap. Backups on the VM's own disk do not survive losing the VM, and
-Oracle can reclaim idle Always Free instances. Until something better exists,
+a single VM is a single point of failure. Until something better exists,
 pull a copy to your laptop now and then:
 
 ```bash
-scp ubuntu@<host>:/var/lib/bahikhata/backups/bahikhata-$(date +%F).db ~/backups/
+gcloud compute scp bahikhata:/var/lib/bahikhata/backups/bahikhata-$(date +%F).db \
+  ~/backups/ --zone=us-central1-a
 ```
 
 Worth automating from your laptop's side rather than the server's — a backup the
