@@ -9,6 +9,7 @@ second copy elsewhere.
 | 2026-09-20 | Step 11 review: indexes, single-query dashboard, pagination, WAL, CSRF, login throttling, backups | Moving from a local toy to a public URL holding real spending data |
 | 2026-09-20 | Step 14: configuration from the environment, data on a volume, 90-day secure sessions, deploy runbook | The public URL was running on a secret that is in the repo, a demo login anyone could use, and a database that was wiped on every redeploy |
 | 2026-09-20 | Settled the four red tests: writes redirect to `/expenses`, dates leave the query layer as ISO and get formatted by a `\|dmy` filter | Both were implementation drift from the specs, and the date one was showing two different formats on two pages |
+| 2026-09-20 | Deployment target moved from Railway to a self-hosted VM (`deploy/`, §3.9) | Railway's trial ended, and every free platform either has no persistent disk or an NFS one — SQLite with WAL needs a real local disk |
 
 ---
 
@@ -92,8 +93,8 @@ scheduler to run, and it protects against the thing a volume doesn't: a bad dele
 
 ### 3.7 `/healthz`
 Returns 200 and runs `SELECT 1`, so the platform can tell "process alive" from "app actually working".
-Step 14 wired it up as Railway's healthcheck, which is what makes it earn its keep: a deploy whose volume
-is missing now fails to go live instead of serving 500s to a phone.
+Step 14 made it the gate on a deploy: `deploy/update.sh` calls it after every restart and resets to the previous
+commit if it does not answer, so a bad deploy self-heals instead of leaving the phone with a dead app.
 
 ### 3.8 One environment switch, not a drawer of flags
 `APP_ENV` decides everything that differs between a laptop and the public site: whether a real `SECRET_KEY`
@@ -110,10 +111,22 @@ the repo.
 `SESSION_COOKIE_SECURE` follows `APP_ENV` rather than being on always: on plain-HTTP localhost the browser
 drops a `Secure` cookie without a word, so signing in appears to do nothing at all.
 
-### 3.9 Backups live beside the database, on the volume
-`backup_db()` derives its directory from `DATABASE_PATH`, so pointing the app at `/data` moves the snapshots
-onto the volume with the data. That guards against a bad delete. It does **not** guard against losing the
-volume — off-site copies are the obvious next step and are deliberately not done yet (see §4).
+### 3.9 A plain VM, because SQLite needs a real disk
+The deployment target moved from Railway to a self-hosted Oracle Always Free VM, and the reason is the storage,
+not the price. SQLite with `journal_mode=WAL` needs a local POSIX-locking filesystem. Of the free Python hosts,
+Render and Koyeb give no persistent disk at all — the database would be wiped on every restart, which is the exact
+failure this step existed to fix — and PythonAnywhere's filesystem is NFS, where WAL can corrupt the file outright.
+So the choice was: give up WAL and run a money ledger on network storage, pay for a platform, or run a VM with a
+real disk. The VM keeps every decision in this document intact and costs nothing.
+
+What it costs instead is operations: TLS, a process supervisor and a firewall are now ours. That is bounded —
+`deploy/` holds a systemd unit, a Caddyfile and two scripts, and Caddy renews certificates by itself — but it is
+real, and it is the honest trade for ₹0 and a disk that behaves.
+
+### 3.10 Backups live beside the database
+`backup_db()` derives its directory from `DATABASE_PATH`, so pointing the app at `/var/lib/bahikhata` puts the
+snapshots there with the data. That guards against a bad delete. It does **not** guard against losing the machine —
+off-site copies are the obvious next step and are deliberately not done yet (see §4).
 
 ---
 

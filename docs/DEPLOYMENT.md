@@ -1,155 +1,218 @@
 # Deploying Bahi-Khata
 
-The live app runs on Railway: one service, gunicorn, a SQLite file on a mounted
-volume. This is the runbook — enough to rebuild the deployment from nothing, and
-enough to fix it at 11pm without rediscovering how it works.
+Bahi-Khata runs on a single small VM: gunicorn behind Caddy, SQLite on the VM's
+own disk. This is the runbook — enough to rebuild the deployment from nothing,
+and enough to fix it at 11pm without rediscovering how it works.
 
-Nothing here contains a secret. Real values live in Railway's variables only.
+Nothing here contains a secret. The real `SECRET_KEY` is generated on the server
+and lives only in `/etc/bahikhata/bahikhata.env`.
 
 ---
 
 ## 1. What is deployed
 
 ```
-phone / laptop  →  Railway edge (HTTPS)  →  gunicorn (1 worker, 4 threads)  →  Flask
-                                                                                 ↓
-                                                            /data/expense_tracker.db  (volume)
-                                                            /data/backups/            (volume)
+phone / laptop  →  Caddy :443 (TLS)  →  gunicorn 127.0.0.1:8000 (1 worker, 4 threads)  →  Flask
+                                                                                            ↓
+                                                        /var/lib/bahikhata/expense_tracker.db
+                                                        /var/lib/bahikhata/backups/
 ```
 
-- The start command lives in `Procfile`, and nowhere else.
-- `/healthz` runs `SELECT 1`. Railway uses it as the healthcheck, so a deploy that
-  cannot reach its database fails to go live instead of serving 500s to a phone.
-- The volume is the only durable thing. The container filesystem is thrown away on
-  every redeploy — anything written outside `/data` is gone.
+| Path | What it holds |
+|---|---|
+| `/opt/bahikhata` | the git checkout and its virtualenv; read-only to the running app |
+| `/var/lib/bahikhata` | the database and its daily snapshots — **the only thing that matters** |
+| `/etc/bahikhata/bahikhata.env` | `SECRET_KEY` and the rest of the environment, `0640 root:bahikhata` |
+| `/etc/systemd/system/bahikhata.service` | installed from `deploy/bahikhata.service` |
+| `/etc/caddy/Caddyfile` | installed from `deploy/Caddyfile` with the hostname substituted |
+
+Gunicorn binds to localhost only, so nothing reaches the app except through
+Caddy. The systemd unit runs with `ProtectSystem=strict` and a single
+`ReadWritePaths=/var/lib/bahikhata`, so a bug cannot rewrite the code that is
+running.
+
+### Why a VM rather than a platform
+
+SQLite needs a real, local, POSIX-locking disk. The free tiers that host Python
+either give no persistent disk at all (Render, Koyeb — the database would be
+wiped on every restart) or put the filesystem on NFS (PythonAnywhere), where
+`journal_mode=WAL` risks corrupting the file. WAL is a deliberate choice here
+(`ARCHITECTURE_REVIEW.md` §3.4), so the host has to have a real disk. An Oracle
+Cloud Always Free VM does, indefinitely, for ₹0.
 
 ## 2. Environment variables
 
+Set in `/etc/bahikhata/bahikhata.env`, which `bootstrap.sh` creates.
+
 | Variable | Required | Value in production | What it does |
 |---|---|---|---|
-| `SECRET_KEY` | **yes** | a real random string | Signs the session cookie. The app **refuses to start** in production without it, or with the placeholder from the repo. |
+| `SECRET_KEY` | **yes** | generated on the box | Signs the session cookie. The app **refuses to start** in production without it, or with the placeholder from the repo. |
 | `APP_ENV` | **yes** | `production` | Turns on `Secure` cookies and `ProxyFix`, and stops the sample data and demo login from ever being seeded. |
-| `DATABASE_PATH` | **yes** | `/data/expense_tracker.db` | Puts the database on the volume. Without it the data is wiped on every redeploy. |
+| `DATABASE_PATH` | **yes** | `/var/lib/bahikhata/expense_tracker.db` | Keeps the database outside the code directory, so a deploy never touches it. |
 | `APP_TIMEZONE` | recommended | `Asia/Kolkata` | The users' calendar day. The server runs in UTC; without this every expense logged before 05:30 IST is dated to the previous day. |
-| `ALLOW_REGISTRATION` | no | unset (open) | Set to `false` to close `/register`. The sign-up links disappear with it. |
-| `PORT` | no | set by Railway | — |
+| `ALLOW_REGISTRATION` | no | `true`, then `false` | Set to `false` once your account exists. `/register` then 404s and the sign-up links disappear. |
 
 `.env.example` in the repo root lists the same set for local use.
 
-Generate a secret:
-
-```bash
-python -c "import secrets; print(secrets.token_urlsafe(48))"
-```
-
-Set it straight into Railway — never into a file in the repo:
-
-```bash
-railway variables --set "SECRET_KEY=<paste>"
-```
+After editing the file: `sudo systemctl restart bahikhata`.
 
 ## 3. First-time setup
 
-1. `railway login`, then `railway link` to the project.
-2. Add a volume mounted at **`/data`** on the web service.
-3. Set the variables from the table above.
-4. Deploy: `railway up`, or push to the branch Railway watches.
-5. Watch the logs for the boot line (see §5) and the healthcheck going green.
-6. Open the public URL and confirm it is HTTPS. Railway provides that by default;
-   the PWA work in Step 16 depends on it.
+### 3.1 The VM
 
-There is no seeding step. A fresh production database has no users — create your
-account through `/register` on the live site, then decide whether to close it.
+1. Create an **Always Free** instance in Oracle Cloud. Either shape works — the
+   Ampere ARM one if there is capacity, the AMD micro otherwise. Ubuntu image.
+2. Save the SSH private key it offers. You cannot download it again.
+3. Note the public IP.
 
-## 4. Infrastructure as Code
+### 3.2 A hostname
 
-Railway's `railway.json` / `railway.toml` ("Config as Code") is **deprecated**: new
-services cannot opt in, and existing files stop being read on **2026-12-01**. The
-replacement is Infrastructure as Code — a `.railway/railway.ts` file describing the
-whole project, evaluated by the CLI rather than read during the build.
+TLS needs a name, not an IP. A free DuckDNS subdomain is enough:
 
-Generate it from the live project rather than writing it by hand, so the service
-name, region and source match reality:
+1. Sign in at duckdns.org, create e.g. `bahikhata`, point it at the public IP.
+2. Confirm it resolves: `dig +short bahikhata.duckdns.org`.
+
+A domain you own works the same way — point an A record at the IP.
+
+### 3.3 Open the ports — both places
+
+This is the step that wastes an afternoon if missed. Oracle's VMs are firewalled
+**twice**:
+
+1. **VCN security list** (Oracle console): add ingress rules allowing TCP 80 and
+   443 from `0.0.0.0/0` on the instance's subnet.
+2. **The instance's own iptables**: Oracle's Ubuntu images drop everything but
+   SSH, and it is not ufw. `bootstrap.sh` handles this one.
+
+If the site is unreachable and Caddy looks healthy, it is almost always step 1.
+
+### 3.4 Run the bootstrap
 
 ```bash
-railway config pull          # writes .railway/railway.ts from the live environment
-railway config plan          # shows exactly what would change — read this
-railway config apply         # applies it, after confirmation
+ssh ubuntu@<public-ip>
+git clone https://github.com/nikhill03/Expense_Tracker.git /tmp/bk
+sudo BAHIKHATA_HOST=bahikhata.duckdns.org /tmp/bk/deploy/bootstrap.sh
 ```
 
-The volume mount, the healthcheck path and the non-secret variables belong in that
-file. Secrets stay as `preserve()`, which means "keep whatever is already set in
-Railway" — so `SECRET_KEY` never enters the repo.
+It installs packages and Caddy, creates the `bahikhata` user and directories,
+clones the repo to `/opt/bahikhata`, builds the virtualenv, generates a
+`SECRET_KEY`, installs the systemd unit and the Caddyfile, and opens the local
+firewall. It is idempotent — re-running never overwrites an existing
+`SECRET_KEY` and never touches the database.
 
-## 5. Checking a deploy
+Caddy gets the certificate on first request, which takes a few seconds.
+
+### 3.5 Your account
+
+There is no seeding in production, so the database starts empty. Register on the
+live site, then close registration:
+
+```bash
+sudo sed -i 's/^ALLOW_REGISTRATION=.*/ALLOW_REGISTRATION=false/' /etc/bahikhata/bahikhata.env
+sudo systemctl restart bahikhata
+```
+
+## 4. Checking a deploy
 
 The first log line says what the process actually resolved:
 
-```
-starting: env=production db=/data/expense_tracker.db tz=Asia/Kolkata secure_cookies=True registration=open secret=from environment
+```bash
+journalctl -u bahikhata -n 20 --no-pager | grep starting
 ```
 
-Read it before anything else. `secret=development default` or `db=expense_tracker.db`
-in production means the variables did not arrive.
+```
+starting: env=production db=/var/lib/bahikhata/expense_tracker.db tz=Asia/Kolkata secure_cookies=True registration=open secret=from environment
+```
+
+Read it before anything else. `secret=development default`, or a `db=` without a
+path, means the environment file did not load.
 
 Then:
 
-- `/healthz` returns `{"status": "ok"}` — 503 means the database is unreachable,
-  almost always a volume that is not mounted or a wrong `DATABASE_PATH`.
-- Sign in, add an expense, and confirm the date is today in IST.
-- After the next redeploy, that expense is still there. This is the whole point of
-  the volume; check it once, properly, the first time.
+- `curl -s https://<host>/healthz` returns `{"status": "ok"}`. A 503 means the
+  app is up but the database is not reachable — usually a permissions problem on
+  `/var/lib/bahikhata`.
+- Sign in, add an expense, confirm the date is today in IST.
+- `sudo systemctl restart bahikhata` and confirm the expense is still there.
+
+## 5. Routine deploys
+
+```bash
+sudo /opt/bahikhata/deploy/update.sh
+```
+
+Pulls `main`, installs any new dependencies, reinstalls the systemd unit if it
+changed, restarts, and checks health. **If the service fails to start it resets
+to the previous commit and restarts** — so a bad deploy self-heals rather than
+leaving the phone with a dead app.
+
+The database is never touched: it lives outside the code directory, and
+`init_db()` migrates the schema in place on startup.
 
 ## 6. Rolling back
 
-Railway keeps previous deployments. Redeploy the last good one from the dashboard or
-with `railway redeploy`. A rollback restores the **code**, not the data — the volume
-is untouched, which is what you want.
+```bash
+sudo -u bahikhata git -C /opt/bahikhata log --oneline -10
+sudo -u bahikhata git -C /opt/bahikhata reset --hard <sha>
+sudo systemctl restart bahikhata
+```
+
+A rollback restores the **code**, not the data — `/var/lib/bahikhata` is
+untouched, which is what you want.
 
 ## 7. Restoring data from a backup
 
 `backup_db()` takes a `VACUUM INTO` snapshot on the first request of each day and
-keeps the newest 7, in `/data/backups/bahikhata-YYYY-MM-DD.db`.
-
-To restore:
+keeps the newest 7, in `/var/lib/bahikhata/backups/bahikhata-YYYY-MM-DD.db`.
 
 ```bash
-railway ssh
-ls /data/backups/
-cp /data/expense_tracker.db /data/expense_tracker.db.before-restore   # keep the bad one
-cp /data/backups/bahikhata-2026-09-19.db /data/expense_tracker.db
+sudo systemctl stop bahikhata
+cd /var/lib/bahikhata
+sudo -u bahikhata cp expense_tracker.db expense_tracker.db.before-restore
+sudo -u bahikhata cp backups/bahikhata-2026-09-19.db expense_tracker.db
+sudo -u bahikhata rm -f expense_tracker.db-wal expense_tracker.db-shm
+sudo systemctl start bahikhata
 ```
 
-Then restart the service so no connection is holding the old file. The WAL sidecar
-files (`-wal`, `-shm`) belong to the replaced database; delete them along with it if
-the app complains.
+Stop the service first — copying over a database that has an open connection is
+how you get a file that is half one snapshot and half another. The `-wal` and
+`-shm` sidecars belong to the database you just replaced, so they go with it.
 
-These snapshots sit on the same volume as the database. They protect against a bad
-delete, not against losing the volume — off-site copies are a known gap, deliberately
-deferred (see `ARCHITECTURE_REVIEW.md`).
+These snapshots sit on the same disk as the database. They protect against a bad
+delete, not against losing the VM — see §9.
 
 ## 8. Rotating `SECRET_KEY`
 
-Set a new value and redeploy. **Every session is invalidated** — everyone is signed
-out and has to log in again on every device. Nothing else is lost. Do it if the key
-is ever exposed; there is no reason to do it routinely.
-
-## 9. When the volume fills
-
-The volume is 5 GB (`expense-tracker-volume`, mounted at `/data`). The database grows
-by roughly a kilobyte per expense and the backups hold seven copies of it, so this is
-decades away — but if it ever gets
-close, in order: delete old snapshots in `/data/backups/`, run `VACUUM`, then grow the
-volume in the Railway dashboard. Do not move the database off the volume to free
-space; that is how data gets lost.
-
-## 10. Closing registration
-
-The site is public, so anyone who finds the URL can create an account. Once your own
-account exists:
-
 ```bash
-railway variables --set "ALLOW_REGISTRATION=false"
+sudo python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
+sudo nano /etc/bahikhata/bahikhata.env     # replace SECRET_KEY
+sudo systemctl restart bahikhata
 ```
 
-`/register` then returns 404 and the sign-up links stop rendering. Unset it to reopen.
+**Every session is invalidated** — you are signed out on every device and have to
+log in again. Nothing else is lost. Do it if the key is ever exposed; there is no
+reason to do it routinely.
+
+## 9. Getting the data off the box
+
+The one real gap. Backups on the VM's own disk do not survive losing the VM, and
+Oracle can reclaim idle Always Free instances. Until something better exists,
+pull a copy to your laptop now and then:
+
+```bash
+scp ubuntu@<host>:/var/lib/bahikhata/backups/bahikhata-$(date +%F).db ~/backups/
+```
+
+Worth automating from your laptop's side rather than the server's — a backup the
+server can delete is not really a backup.
+
+## 10. When something is wrong
+
+| Symptom | Look at |
+|---|---|
+| Site unreachable, no TLS error | VCN security list ingress (§3.3) — the usual culprit |
+| TLS fails, "certificate not trusted" | `journalctl -u caddy -n 50` — usually DNS not pointing at the box yet |
+| 502 from Caddy | gunicorn is down: `systemctl status bahikhata`, `journalctl -u bahikhata -n 50` |
+| `/healthz` returns 503 | the app is up, the database is not: check ownership of `/var/lib/bahikhata` |
+| Signed out constantly | `SECRET_KEY` changing between restarts — the env file is not loading |
+| Login appears to do nothing | reaching the site over plain HTTP with `APP_ENV=production`; the browser drops the `Secure` cookie |
