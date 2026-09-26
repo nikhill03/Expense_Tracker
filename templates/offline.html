@@ -1,0 +1,24 @@
+{#- Shown by the service worker when a page request fails.
+
+    No form here, deliberately. This page is precached, so its CSRF token would
+    be whatever it was at install time — a form on it would post a stale token
+    and be rejected. A link is the only safe control on a cached page. -#}
+{% extends "base.html" %}
+
+{% block title %}Offline — Bahi-Khata{% endblock %}
+
+{% block content %}
+<div class="shell max-w-md! py-20 text-center">
+    <p class="amount text-hero text-ink-3/40">₹</p>
+    <h1 class="mt-2 font-display text-2xl font-bold tracking-tight">No connection</h1>
+    <p class="mx-auto mt-2 max-w-sm text-sm text-ink-3">
+        Bahi-Khata needs the network to read or save an expense. Your data is safe
+        on the server — this is just the page failing to load.
+    </p>
+    <a href="{{ url_for('quick_add') }}" class="btn btn-primary mt-7">Try again</a>
+    <p class="mt-4 text-tiny text-ink-3">
+        Offline entry is not built yet, so note anything urgent elsewhere and add it
+        when you have signal.
+    </p>
+</div>
+{% endblock %}

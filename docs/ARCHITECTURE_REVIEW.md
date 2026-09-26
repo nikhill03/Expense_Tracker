@@ -10,6 +10,7 @@ second copy elsewhere.
 | 2026-09-20 | Step 14: configuration from the environment, data on a volume, 90-day secure sessions, deploy runbook | The public URL was running on a secret that is in the repo, a demo login anyone could use, and a database that was wiped on every redeploy |
 | 2026-09-20 | Settled the four red tests: writes redirect to `/expenses`, dates leave the query layer as ISO and get formatted by a `\|dmy` filter | Both were implementation drift from the specs, and the date one was showing two different formats on two pages |
 | 2026-09-20 | Deployment target moved from Railway to a self-hosted VM (`deploy/`, §3.9) | Railway's trial ended, and every free platform either has no persistent disk or an NFS one — SQLite with WAL needs a real local disk |
+| 2026-09-26 | Step 16: installable PWA, and fonts moved off Google to fix a CSP regression (§3.11) | Going live behind a strict CSP silently blocked the webfonts; self-hosting fixed it without weakening the policy and made the offline shell possible |
 
 ---
 
@@ -127,6 +128,21 @@ real, and it is the honest trade for ₹0 and a disk that behaves.
 `backup_db()` derives its directory from `DATABASE_PATH`, so pointing the app at `/var/lib/bahikhata` puts the
 snapshots there with the data. That guards against a bad delete. It does **not** guard against losing the machine —
 off-site copies are the obvious next step and are deliberately not done yet (see §4).
+
+### 3.11 Self-hosted fonts, and a worker that caches almost nothing
+The first deploy shipped a CSP of `default-src 'self'` while `base.html` still pulled two families from
+fonts.googleapis.com. Both were blocked; production rendered in the fallback stack and nothing errored. The
+choice was to loosen the policy or move the files. Moving them won on three counts: the CSP stays strict, two
+third-party round trips disappear from every page load, and a service worker can cache a same-origin font but
+not a cross-origin one it is forbidden to fetch. The `latin-ext` subsets ship alongside `latin` because ₹ is
+U+20B9 and lives there — subsetting it away would have cost the rupee sign on every amount.
+
+The worker itself is deliberately close to useless, and that is the design. It precaches static assets and one
+offline page; it does **not** cache HTML, because every page embeds a per-session CSRF token and a cached page
+would post a token `_guard_and_time_request` rejects — the user would see "your session expired" on a form that
+looked fine, and stale balances besides. It never touches a non-GET request either, so *a GET never writes*
+stays true with a worker in the path. Entering an expense with no connection is Step 19 and needs a real queue;
+pretending a cache is that would lose data quietly.
 
 ---
 

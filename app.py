@@ -1,4 +1,5 @@
 import logging
+import mimetypes
 import os
 import re
 import secrets
@@ -6,7 +7,17 @@ import sqlite3
 import time
 from collections.abc import Mapping
 from datetime import date, datetime, timedelta
-from flask import Flask, render_template, request, redirect, url_for, session, abort, g
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    session,
+    abort,
+    g,
+    send_from_directory,
+)
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 import timeutil
@@ -25,6 +36,11 @@ from database.queries import (
     get_budgets,
     get_month_budget_status,
 )
+
+# Python's mimetypes table has no entry for .webmanifest, so Flask's static
+# handler would serve it as text/plain and the browser would ignore the file
+# entirely — which looks exactly like "the install prompt never appears".
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 # The value the repo ships with. It is public, so it is only ever good enough for a
 # laptop — resolve_config refuses to let it reach production.
@@ -462,6 +478,40 @@ def healthz():
         app.logger.error("health check failed: %s", exc)
         return {"status": "error"}, 503
     return {"status": "ok"}, 200
+
+
+# ------------------------------------------------------------------ #
+# Installable app                                                     #
+# ------------------------------------------------------------------ #
+
+
+@app.route("/sw.js")
+def service_worker():
+    """Serve the worker from the root, which is the only place it is useful.
+
+    A worker fetched from /static/sw.js is scoped to /static/, so it would
+    control the stylesheet and nothing a person ever navigates to. Serving the
+    same file from / gives it scope over the whole app; the explicit
+    Service-Worker-Allowed header says so out loud for browsers that check.
+    """
+    response = send_from_directory(
+        app.static_folder, "sw.js", mimetype="text/javascript"
+    )
+    response.headers["Service-Worker-Allowed"] = "/"
+    # The worker decides what is cached; it must not itself be stale, or a
+    # deploy can leave an old caching policy in place indefinitely.
+    response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
+@app.route("/offline")
+def offline():
+    """The page the worker shows when a navigation fails.
+
+    Precached, so it must stay free of anything session-shaped — see the note
+    in templates/offline.html.
+    """
+    return render_template("offline.html")
 
 
 # ------------------------------------------------------------------ #

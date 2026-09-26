@@ -9,6 +9,27 @@ and lives only in `/etc/bahikhata/bahikhata.env`.
 
 ---
 
+## 0. The current deployment
+
+| | |
+|---|---|
+| URL | https://bahiikhata.duckdns.org |
+| GCP project | `project-c0b38a64-e4c7-443d-a2a` ("Bahi Khata") |
+| Instance | `bahikhata`, `e2-micro`, zone `us-central1-a` |
+| External IP | `35.188.183.238` (ephemeral — see the note below) |
+| Billing | Always Free, ₹100 budget alert at 50/90/100% |
+| First deployed | 26 September 2026 |
+
+**The IP is ephemeral.** Google keeps it while the instance runs, but a stop/start
+gets a new one and DuckDNS would then point at nothing. If the site ever
+disappears after a reboot, check the IP first and update DuckDNS. Reserving a
+static IP is possible but only free *while attached to a running instance* — an
+unattached reserved IP is billed, so it is not obviously the safer choice.
+
+**The org denies external IPs by default.** An exemption exists for this one
+instance (`compute.vmExternalIpAccess`). Recreating the VM under a different name
+or zone will be refused until the policy is updated to match.
+
 ## 1. What is deployed
 
 ```
