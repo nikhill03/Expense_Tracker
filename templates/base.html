@@ -25,17 +25,26 @@
     <meta name="theme-color" content="#14141f" media="(prefers-color-scheme: dark)">
     <meta name="color-scheme" content="light dark">
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    {#- Installable app. iOS ignores the manifest entirely, hence the duplicate
+        apple-* tags; the unprefixed one is the standard Android reads. -#}
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+    <link rel="icon" href="{{ url_for('static', filename='icons/icon-192.png') }}" sizes="192x192" type="image/png">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+    <meta name="application-name" content="Bahi-Khata">
+    <meta name="apple-mobile-web-app-title" content="Bahi-Khata">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
-    {#- Fonts load async so they never block first paint; the fallback stack is
-        metric-similar enough that the swap is quiet. -#}
-    <link rel="stylesheet" media="print" onload="this.media='all'"
-          href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
-    <noscript>
-        <link rel="stylesheet"
-              href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
-    </noscript>
+    {#- Fonts are self-hosted (@font-face in css/src/app.css) — same files Google
+        served, but same-origin, so the strict CSP allows them and the service
+        worker can cache them. Preload only the two latin subsets that every page
+        uses; latin-ext loads on demand for ₹ and accented text. -#}
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="{{ url_for('static', filename='fonts/hanken-grotesk-latin.woff2') }}">
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="{{ url_for('static', filename='fonts/bricolage-grotesque-latin.woff2') }}">
 
     {#- Prerender the page the user is most likely to open next. Cheap on an MPA
         and invisible where unsupported. -#}

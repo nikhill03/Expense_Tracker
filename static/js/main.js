@@ -183,4 +183,22 @@
     if (!e.persisted) return;
     document.querySelectorAll('[data-quick-submit]').forEach(function (b) { b.disabled = false; });
   });
+
+  // ---------------------------------------------------------------- //
+  // Service worker                                                    //
+  // ---------------------------------------------------------------- //
+  // Makes the app installable and gives a real page instead of the browser's
+  // error screen when the network drops. Registered after load so it never
+  // competes with the first render, and every failure is swallowed — an app
+  // that will not start because a worker would not register is worse than an
+  // app with no worker.
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      try {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          .catch(function () { /* unsupported, blocked, or private mode */ });
+      } catch (e) { /* ditto */ }
+    });
+  }
 }());
