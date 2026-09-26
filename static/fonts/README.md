@@ -27,13 +27,17 @@ back. Amounts use `--font-display`, i.e. Bricolage, which does have it.)
 
 ## Licence
 
-Both families are licensed under the SIL Open Font License 1.1 —
-https://scripts.sil.org/OFL
+Both families are licensed under the SIL Open Font License 1.1. The OFL requires
+the licence text to travel with the fonts, not merely a link to it, so the full
+text of each sits beside them:
 
-- Copyright 2022 The Bricolage Grotesque Project Authors
-  (https://github.com/ateliertriay/bricolage)
-- Copyright 2021 The Hanken Grotesk Project Authors
-  (https://github.com/marcologous/hanken-grotesk)
+| Family | Copyright | Licence |
+|---|---|---|
+| Bricolage Grotesque | 2022 The Bricolage Grotesque Project Authors ([source](https://github.com/ateliertriay/bricolage)) | `OFL-BricolageGrotesque.txt` |
+| Hanken Grotesk | 2021 The Hanken Grotesk Project Authors ([source](https://github.com/marcologous/hanken-grotesk)) | `OFL-HankenGrotesk.txt` |
+
+Keep those files here if the fonts stay. Deleting them while redistributing the
+`woff2` files would put this repository out of compliance.
 
 ## Replacing them
 
