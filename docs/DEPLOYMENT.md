@@ -257,15 +257,60 @@ reason to do it routinely.
 ## 9. Getting the data off the box
 
 The one real gap. Backups on the VM's own disk do not survive losing the VM, and
-a single VM is a single point of failure. Until something better exists,
-pull a copy to your laptop now and then:
+a single VM is a single point of failure. Pull a copy off the box now and then,
+and always before a trip.
+
+**Take a current snapshot first.** `backup_db()` runs once a day, on the first
+request, so the newest file in `backups/` can be many hours stale. `VACUUM INTO`
+is safe on a live database and gives one consistent file — a plain `cp` is not,
+because under WAL it would silently miss whatever is still in the `-wal` sidecar.
 
 ```bash
-gcloud compute scp bahikhata:/var/lib/bahikhata/backups/bahikhata-$(date +%F).db \
-  ~/backups/ --zone=us-central1-a
+gcloud compute ssh bahikhata --zone=us-central1-a --command="sudo -u bahikhata python3 -c \"
+import sqlite3
+sqlite3.connect('/var/lib/bahikhata/expense_tracker.db').execute(
+    \\\"VACUUM INTO '/var/lib/bahikhata/backups/pre-trip-\$(date +%F).db'\\\")
+\""
 ```
 
-Worth automating from your laptop's side rather than the server's — a backup the
+**Then stage it somewhere readable before copying.** `/var/lib/bahikhata` is
+`0700` and owned by the service user; `scp` does not run as root, so copying
+straight out of it fails with *permission denied*. A glob does not help either —
+your shell expands `*.db` before `sudo` runs, cannot read the directory, and
+passes the pattern through literally. Copy the directory's contents instead, so
+root does the reading:
+
+```bash
+gcloud compute ssh bahikhata --zone=us-central1-a \
+  --command='mkdir -p ~/bk && sudo cp -r /var/lib/bahikhata/backups/. ~/bk/ && sudo chown -R $USER ~/bk'
+
+gcloud compute scp "bahikhata:~/bk/*.db" ~/backups/ --zone=us-central1-a
+```
+
+From Cloud Shell, finish with **⋮ → Download**. Stopping at Cloud Shell is not a
+backup: that is still Google's infrastructure, and the point is a copy that
+survives losing the project.
+
+**Then delete the staging copy** — it is the whole ledger in plaintext, sitting
+outside the `0700` directory:
+
+```bash
+gcloud compute ssh bahikhata --zone=us-central1-a --command='rm -rf ~/bk'
+```
+
+**Verify a backup occasionally rather than assuming.** An untested backup is a
+guess:
+
+```bash
+python3 -c "
+import sqlite3
+c = sqlite3.connect('pre-trip-YYYY-MM-DD.db')
+print('users:', c.execute('select count(*) from users').fetchone()[0])
+print('expenses:', c.execute('select count(*) from expenses').fetchone()[0])
+"
+```
+
+Worth automating from the laptop's side rather than the server's — a backup the
 server can delete is not really a backup.
 
 ## 10. When something is wrong
