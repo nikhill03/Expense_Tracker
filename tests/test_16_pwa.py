@@ -65,8 +65,30 @@ def test_manifest_describes_an_installable_app(manifest):
     assert manifest["name"] == "Bahi-Khata"
     assert manifest["display"] == "standalone"
     assert manifest["scope"] == "/"
-    # The app opens on the screen it exists for, not the dashboard.
-    assert manifest["start_url"] == "/quick"
+    # Must be a URL that answers 200 signed in or out — Chrome probes it when
+    # deciding installability, and anything that redirects there is a risk.
+    # `/` then forwards signed-in visitors to /quick.
+    assert manifest["start_url"] == "/"
+
+
+def test_start_url_never_redirects_when_signed_out(client):
+    """The signed-out state is what Chrome sees on a freshly cleared origin."""
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 200
+
+
+def test_start_url_forwards_a_signed_in_visitor_to_quick_add(client):
+    """Installed, the app should still open on the screen it exists for."""
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["user_name"] = "Test User"
+    try:
+        response = client.get("/", follow_redirects=False)
+        assert response.status_code == 302
+        assert "/quick" in response.headers["Location"]
+    finally:
+        with client.session_transaction() as sess:
+            sess.clear()
 
 
 def test_manifest_has_both_icon_purposes(manifest):

@@ -592,6 +592,13 @@ with app.app_context():
 
 @app.route("/")
 def landing():
+    # The manifest's start_url, so it has to answer 200 for everyone: Chrome
+    # checks it when deciding whether the app is installable, and /quick — the
+    # screen we actually want the app to open on — redirects to /login when
+    # signed out. Sending signed-in visitors on from here keeps that behaviour
+    # without putting a redirect on the URL Chrome probes.
+    if session.get("user_id"):
+        return redirect(url_for("quick_add"))
     return render_template("landing.html")
 
 
