@@ -192,6 +192,16 @@ _DEBITED_AMOUNT = re.compile(
     r"debited\s*(?:by|for|with)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)", re.IGNORECASE
 )
 
+# Money arriving reads exactly like money leaving to a regex. A salary credit,
+# a refund or a cashback would otherwise prefill the form with someone else's
+# number — "credited with Rs.50000.00 salary" becoming a ₹50,000 expense.
+_MONEY_OUT = re.compile(
+    r"\b(debited|debit|spent|paid|withdrawn|purchase)\b", re.IGNORECASE
+)
+_MONEY_IN = re.compile(
+    r"\b(credited|credit|refund|cashback|received|deposited)\b", re.IGNORECASE
+)
+
 # Only used to tell the user where a prefilled amount came from.
 _SOURCES = [
     ("UPI", "UPI alert"),
@@ -216,6 +226,13 @@ def parse_amount_from_text(text):
     link an automation built.
     """
     if not text:
+        return None
+
+    # A debit word anywhere wins: "debited from A/c X and credited to Paytm"
+    # is money leaving, and reads that way round in most UPI alerts. Only a
+    # message that talks about money arriving and never about it leaving is
+    # treated as not-an-expense.
+    if _MONEY_IN.search(text) and not _MONEY_OUT.search(text):
         return None
 
     for pattern in (_CURRENCY_AMOUNT, _DEBITED_AMOUNT):

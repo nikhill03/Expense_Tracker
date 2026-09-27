@@ -105,7 +105,7 @@ def _add_event(db_path, user_id, name="Goa Trip", start=None, end=None):
 
 def _selected_event(body):
     """The event id the sheet's picker came back with selected, or None."""
-    sheet = body[body.index('id="quick-sheet"'):]
+    sheet = body[body.index('id="quick-sheet"') :]
     match = re.search(r'<option value="(\d+)"[^>]*\bselected\b', sheet)
     return int(match.group(1)) if match else None
 
@@ -159,6 +159,41 @@ class TestParseAmountFromText:
 
         message = "On 20-09-2026 A/c XX4417 debited by Rs.75.50 at BLINKIT"
         assert parse_amount_from_text(message) == 75.50
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "A/c XX4417 credited with Rs.50000.00 salary for Sep 2026",
+            "Refund of Rs.1,299.00 credited to your account by AMAZON",
+            "You have received Rs.500 from Nikhil via UPI",
+            "Cashback of Rs 75 credited to your Paytm wallet",
+            "INR 25,000 deposited in A/c XX4417 by NEFT",
+        ],
+    )
+    def test_ignores_money_coming_in(self, message):
+        """A salary or a refund is not an expense, and reads the same to a regex.
+
+        Nothing is saved without a tap, so this only ever prefilled a silly
+        number — but ₹50,000 staring back at you is still wrong.
+        """
+        from app import parse_amount_from_text
+
+        assert parse_amount_from_text(message) is None
+
+    @pytest.mark.parametrize(
+        "message, expected",
+        [
+            # Most UPI alerts name both sides: debited from you, credited to
+            # the merchant. That is still money leaving.
+            ("Your a/c XX8890 is debited by 2500.00 and credited to Paytm", 2500.0),
+            ("Rs.500 spent on your ICICI credit card at AMAZON", 500.0),
+            ("Rs.340 debited from A/c XX4417 to SWIGGY, UPI Ref 5283", 340.0),
+        ],
+    )
+    def test_still_reads_debits_that_mention_credit(self, message, expected):
+        from app import parse_amount_from_text
+
+        assert parse_amount_from_text(message) == expected
 
     def test_names_the_sender_when_it_recognises_one(self):
         from app import parse_source_from_text
@@ -429,11 +464,13 @@ class TestQuickSheet:
         from app import EXPENSE_CATEGORIES
 
         body = client.get(path).get_data(as_text=True)
-        sheet = body[body.index('id="quick-sheet"'):]
+        sheet = body[body.index('id="quick-sheet"') :]
         values = re.findall(r'<input[^>]*name="category"[^>]*value="([^"]*)"', sheet)
         assert values == EXPENSE_CATEGORIES
 
-    def test_event_page_sheet_is_unaffected_by_its_own_breakdown(self, client, db_path, user_id):
+    def test_event_page_sheet_is_unaffected_by_its_own_breakdown(
+        self, client, db_path, user_id
+    ):
         from app import EXPENSE_CATEGORIES
 
         conn = _make_conn(db_path)
@@ -444,7 +481,7 @@ class TestQuickSheet:
         conn.close()
 
         body = client.get(f"/events/{event_id}").get_data(as_text=True)
-        sheet = body[body.index('id="quick-sheet"'):]
+        sheet = body[body.index('id="quick-sheet"') :]
         values = re.findall(r'<input[^>]*name="category"[^>]*value="([^"]*)"', sheet)
         assert values == EXPENSE_CATEGORIES
 
@@ -464,26 +501,24 @@ class TestSheetEventPicker:
     def test_picker_appears_once_the_user_has_an_event(self, client, db_path, user_id):
         _add_event(db_path, user_id)
         body = client.get("/profile").get_data(as_text=True)
-        sheet = body[body.index('id="quick-sheet"'):]
+        sheet = body[body.index('id="quick-sheet"') :]
         assert 'name="event_id"' in sheet
         assert "Goa Trip" in sheet
 
     def test_no_picker_when_there_are_no_events(self, client):
         """Nothing to pick, so the row would be dead weight."""
         body = client.get("/profile").get_data(as_text=True)
-        sheet = body[body.index('id="quick-sheet"'):]
+        sheet = body[body.index('id="quick-sheet"') :]
         assert 'name="event_id"' not in sheet
 
     def test_attaching_stays_optional(self, client, db_path, user_id):
         _add_event(db_path, user_id)
         body = client.get("/profile").get_data(as_text=True)
-        sheet = body[body.index('id="quick-sheet"'):]
+        sheet = body[body.index('id="quick-sheet"') :]
         assert "Not part of an event" in sheet
 
     @pytest.mark.parametrize("path", ["/events/{id}", "/events/{id}/edit"])
-    def test_event_page_preselects_its_own_event(
-        self, client, db_path, user_id, path
-    ):
+    def test_event_page_preselects_its_own_event(self, client, db_path, user_id, path):
         event_id = _add_event(db_path, user_id)
         body = client.get(path.format(id=event_id)).get_data(as_text=True)
         assert _selected_event(body) == event_id
@@ -522,7 +557,12 @@ class TestSheetEventPicker:
         _add_event(db_path, user_id)
         body = client.post(
             "/quick",
-            data={"amount": "bad", "category": "Food", "date": _today(), "event_id": ""},
+            data={
+                "amount": "bad",
+                "category": "Food",
+                "date": _today(),
+                "event_id": "",
+            },
         ).get_data(as_text=True)
         assert re.search(r'<option value="\d+"[^>]*\bselected\b', body) is None
 
