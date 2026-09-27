@@ -5,7 +5,7 @@
   "lang": "en-IN",
   "dir": "ltr",
   "scope": "/",
-  "start_url": "/quick",
+  "start_url": "/",
   "id": "/",
   "display": "standalone",
   "orientation": "portrait",
@@ -55,6 +55,7 @@
   "share_target": {
     "action": "/quick",
     "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
     "params": {
       "title": "title",
       "text": "text",
