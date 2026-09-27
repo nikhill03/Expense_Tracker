@@ -15,3 +15,9 @@ node_modules/
 .claude/
 CLAUDE.md
 PHONE_PLAN.md
+
+# Database snapshots pulled off the server. These are the real ledger —
+# account row and every expense — so they must never reach a public repo.
+*.db
+*.db-wal
+*.db-shm
