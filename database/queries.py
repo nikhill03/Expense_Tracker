@@ -1,5 +1,5 @@
 from calendar import monthrange
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import timeutil
 from database.db import get_db
@@ -512,4 +512,53 @@ def get_month_budget_status(user_id, today=None):
         "pct_used": (
             min(int(spent_total / budget_total * 100), 100) if budget_total else 0
         ),
+    }
+
+
+def get_month_comparison(user_id, today=None):
+    """How this month's spending compares to last month's, as of the same day.
+
+    Returns None when last month had no spending — a percentage change from
+    zero is either undefined or meaninglessly large, and comparing a whole
+    month's spend against a handful of days (early in a new month) would make
+    this month look artificially better than it is. So the comparison is
+    "spend so far" on both sides: last month, up to the same day-of-month.
+    """
+    today = today or timeutil.today()
+    this_first = today.replace(day=1)
+    last_day_prev_month = this_first - timedelta(days=1)
+    prev_first = last_day_prev_month.replace(day=1)
+    # Clamp to the previous month's own length — comparing 31 Jan against a
+    # February that only has 28 days would otherwise reach past it.
+    prev_days = monthrange(prev_first.year, prev_first.month)[1]
+    prev_same_day = prev_first.replace(day=min(today.day, prev_days))
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT"
+            " COALESCE(SUM(CASE WHEN date >= ? THEN amount END), 0) AS this_total,"
+            " COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN amount END), 0)"
+            "   AS last_total"
+            " FROM expenses WHERE user_id = ? AND date >= ?",
+            (
+                this_first.isoformat(),
+                prev_first.isoformat(),
+                prev_same_day.isoformat(),
+                user_id,
+                prev_first.isoformat(),
+            ),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    this_total, last_total = row["this_total"], row["last_total"]
+    if last_total == 0:
+        return None
+
+    pct_change = round((this_total - last_total) / last_total * 100)
+
+    return {
+        "pct_change": abs(pct_change),
+        "direction": "up" if pct_change > 0 else ("down" if pct_change < 0 else "flat"),
     }

@@ -11,6 +11,7 @@ second copy elsewhere.
 | 2026-09-20 | Settled the four red tests: writes redirect to `/expenses`, dates leave the query layer as ISO and get formatted by a `\|dmy` filter | Both were implementation drift from the specs, and the date one was showing two different formats on two pages |
 | 2026-09-20 | Deployment target moved from Railway to a self-hosted VM (`deploy/`, §3.9) | Railway's trial ended, and every free platform either has no persistent disk or an NFS one — SQLite with WAL needs a real local disk |
 | 2026-09-26 | Step 16: installable PWA, and fonts moved off Google to fix a CSP regression (§3.11) | Going live behind a strict CSP silently blocked the webfonts; self-hosting fixed it without weakening the policy and made the offline shell possible |
+| 2026-10-14 | Step 17's leftover stat: "this month vs last month" on `/profile` (§3.12), its own query rather than folded into the aggregate | Finishes Step 17; the dashboard's query budget moves from 5 to 6, following the precedent `get_month_budget_status()` already set |
 
 ---
 
@@ -143,6 +144,21 @@ would post a token `_guard_and_time_request` rejects — the user would see "you
 looked fine, and stale balances besides. It never touches a non-GET request either, so *a GET never writes*
 stays true with a worker in the path. Entering an expense with no connection is Step 19 and needs a real queue;
 pretending a cache is that would lose data quietly.
+
+### 3.12 A sixth dashboard query, deliberately, for the month-comparison stat
+`/profile`'s query budget moved from 5 to 6 when the "vs last month" stat shipped. It would have been
+cheaper to fold the comparison into `get_dashboard()`'s single aggregate, but that aggregate is grouped by
+category over whatever date range the page's own filter is showing — "All time", a custom range, whatever —
+while the comparison always needs this-month-so-far against last-month-so-far, regardless of that filter. A
+`CASE WHEN` fused into the same grouped query would answer a different question than the breakdown bars next
+to it; two readable queries beat one contorted one. `get_month_budget_status()` already set this precedent —
+it is the same shape, an unconditional current-month fact living beside a user-chosen filter — so the new
+query follows it rather than inventing a second pattern.
+
+The comparison is "spend so far" on both sides, not whole-month vs whole-month: day 2 of a new month
+compared against all 30 days of the one before it would read as an enormous, meaningless improvement.
+`get_month_comparison()` clamps the previous month's cutoff to its own length, so 31 March compared against
+a 28-day February does not try to read past the 28th.
 
 ---
 

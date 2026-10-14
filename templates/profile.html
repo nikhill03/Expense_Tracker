@@ -95,7 +95,26 @@
     <div class="mt-10 grid gap-10 lg:grid-cols-[1.4fr_1fr] lg:items-start lg:gap-12">
 
         <section class="lg:order-2">
-            <h2 class="section-title">Where it went</h2>
+            <div class="section-head">
+                <h2 class="section-title">Where it went</h2>
+                {% if month_comparison %}
+                {# Neutral, not a budget signal — colour here is reserved for budget
+                   status, so this stays text-ink-3 with a glyph rather than
+                   good/warn/over. #}
+                <span class="status text-ink-3">
+                    {% if month_comparison.direction == 'up' %}
+                    <svg viewBox="0 0 20 20" class="h-4 w-4" fill="currentColor" aria-hidden="true"><path d="M10 4a1 1 0 0 1 .78.375l5 6a1 1 0 1 1-1.56 1.25L11 7.69V15a1 1 0 1 1-2 0V7.69l-3.22 3.935a1 1 0 1 1-1.56-1.25l5-6A1 1 0 0 1 10 4z"/></svg>
+                    {% elif month_comparison.direction == 'down' %}
+                    <svg viewBox="0 0 20 20" class="h-4 w-4" fill="currentColor" aria-hidden="true"><path d="M10 16a1 1 0 0 1-.78-.375l-5-6a1 1 0 1 1 1.56-1.25L9 12.31V5a1 1 0 1 1 2 0v7.31l3.22-3.935a1 1 0 1 1 1.56 1.25l-5 6A1 1 0 0 1 10 16z"/></svg>
+                    {% endif %}
+                    {% if month_comparison.direction == 'flat' %}
+                    About the same as this time last month
+                    {% else %}
+                    {{ month_comparison.pct_change }}% {{ 'more' if month_comparison.direction == 'up' else 'less' }} than this time last month
+                    {% endif %}
+                </span>
+                {% endif %}
+            </div>
             {{ category_meters(categories, 'Nothing recorded in this period yet.') }}
         </section>
 
