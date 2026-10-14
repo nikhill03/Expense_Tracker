@@ -35,6 +35,7 @@ PRIVATE_PAGES = [
     "/expenses",
     "/events",
     "/budgets",
+    "/account",
     "/expenses/add",
     "/quick?text=Rs.340.00+debited+from+A%2Fc+XX4417+via+UPI",
 ]
@@ -204,10 +205,15 @@ def audit_theme(page, report: Report) -> None:
     dark_bg = page.evaluate("getComputedStyle(document.body).backgroundColor")
     theme = page.evaluate("document.documentElement.dataset.theme")
 
-    report.check(light_bg != dark_bg, f"theme toggle did not change the background ({light_bg})")
+    report.check(
+        light_bg != dark_bg, f"theme toggle did not change the background ({light_bg})"
+    )
     report.check(theme == "dark", f"theme toggle left data-theme as {theme!r}")
     report.check(
-        page.evaluate("document.getElementById('theme-toggle').getAttribute('aria-pressed')") == "true",
+        page.evaluate(
+            "document.getElementById('theme-toggle').getAttribute('aria-pressed')"
+        )
+        == "true",
         "theme toggle did not update aria-pressed",
     )
 
@@ -219,7 +225,9 @@ def audit_theme(page, report: Report) -> None:
 
     # Text must stay readable in the dark theme, not just render.
     ratio = page.evaluate(CONTRAST_JS)
-    report.check(ratio >= 4.5, f"dark theme body text contrast is {ratio}:1, below 4.5:1")
+    report.check(
+        ratio >= 4.5, f"dark theme body text contrast is {ratio}:1, below 4.5:1"
+    )
 
     page.dispatch_event("#theme-toggle", "click")
 
@@ -237,7 +245,9 @@ def audit_quick_sheet(page, report: Report) -> None:
 
     page.evaluate("document.getElementById('quick-sheet').showPopover()")
     report.check(
-        page.evaluate("document.getElementById('quick-sheet').matches(':popover-open')"),
+        page.evaluate(
+            "document.getElementById('quick-sheet').matches(':popover-open')"
+        ),
         "the quick-add sheet did not open",
     )
 
@@ -249,7 +259,9 @@ def audit_quick_sheet(page, report: Report) -> None:
 
     page.keyboard.press("Escape")
     report.check(
-        not page.evaluate("document.getElementById('quick-sheet').matches(':popover-open')"),
+        not page.evaluate(
+            "document.getElementById('quick-sheet').matches(':popover-open')"
+        ),
         "Escape did not close the quick-add sheet",
     )
 

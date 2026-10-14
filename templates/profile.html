@@ -163,6 +163,7 @@
     <section class="mt-12 border-t border-rule pt-5 text-tiny text-ink-3">
         <p>Signed in as <span class="font-semibold text-ink-2">{{ user.name }}</span> · {{ user.email }}</p>
         <p class="mt-0.5">Keeping this ledger since {{ user.member_since }}.</p>
+        <p class="mt-2"><a href="{{ url_for('account') }}" class="link-quiet link-tap">Change password</a></p>
     </section>
 </div>
 {% endblock %}

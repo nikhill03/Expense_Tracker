@@ -800,6 +800,69 @@ def profile():
     )
 
 
+@app.route("/account", methods=["GET", "POST"])
+def account():
+    """Change the signed-in user's password.
+
+    There is no self-service recovery path if a user forgets their password —
+    only a server-side reset by hand — so this route exists to make it unlikely
+    anyone needs one in the first place.
+    """
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+    user = get_user_by_id(user_id)
+
+    if request.method == "GET":
+        return render_template("account.html", user=user, saved=request.args.get("saved"))
+
+    current_password = request.form.get("current_password", "")
+    new_password = request.form.get("new_password", "")
+    confirm_password = request.form.get("confirm_password", "")
+
+    def redisplay(msg):
+        return render_template("account.html", user=user, error=msg)
+
+    if not current_password or not new_password or not confirm_password:
+        return redisplay("All fields are required.")
+
+    conn = get_db()
+    row = conn.execute(
+        "SELECT password_hash FROM users WHERE id = ?", (user_id,)
+    ).fetchone()
+
+    if not row or not check_password_hash(row["password_hash"], current_password):
+        conn.close()
+        return redisplay("Current password is incorrect.")
+
+    if len(new_password) < 8:
+        conn.close()
+        return redisplay("New password must be at least 8 characters.")
+
+    if new_password != confirm_password:
+        conn.close()
+        return redisplay("New password and confirmation do not match.")
+
+    if check_password_hash(row["password_hash"], new_password):
+        conn.close()
+        return redisplay("New password must be different from your current password.")
+
+    try:
+        conn.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (generate_password_hash(new_password), user_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # The session itself is unaffected — password hashes have nothing to do
+    # with how the cookie is signed — so the user stays logged in and sees the
+    # change take effect without having to sign back in on this device.
+    return redirect(url_for("account", saved="1"))
+
+
 @app.route("/expenses")
 def expenses():
     if not session.get("user_id"):
