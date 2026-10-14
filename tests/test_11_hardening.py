@@ -351,10 +351,18 @@ class TestQueryCount:
         """A handful of queries, and the count must stay flat.
 
         The dashboard looks up the user, aggregates spending once, fetches the
-        transaction list and checks the budgets. The fifth is the quick-add
-        sheet's event picker, which base.html renders on every signed-in page —
-        a deliberate id+name lookup (queries.get_event_options), not the
-        aggregate-heavy get_events_for_user.
+        transaction list, checks the budgets and compares this month against
+        last. The sixth is the quick-add sheet's event picker, which base.html
+        renders on every signed-in page — a deliberate id+name lookup
+        (queries.get_event_options), not the aggregate-heavy
+        get_events_for_user.
+
+        The budget check and the month comparison are each their own round
+        trip rather than folded into the one aggregate, because both run
+        unconditionally against the current month regardless of whatever date
+        range the page's own filter is showing — a different WHERE clause
+        from the aggregate's, so there is nothing to fold them into without
+        contorting the SQL into something harder to read than two queries.
 
         What matters is that the number never grows with the number of expenses,
         categories or events on the page.
@@ -386,13 +394,13 @@ class TestQueryCount:
         counter["queries"] = 0
         resp = patched_app.get("/profile?preset=all")
         assert resp.status_code == 200
-        assert counter["queries"] <= 5, f"dashboard ran {counter['queries']} queries"
+        assert counter["queries"] <= 6, f"dashboard ran {counter['queries']} queries"
 
         # Ten times the data must not mean more queries.
         _add_expenses(db_path, user_id, 200, category="Transport")
         counter["queries"] = 0
         patched_app.get("/profile?preset=all")
-        assert counter["queries"] <= 5, f"dashboard ran {counter['queries']} queries"
+        assert counter["queries"] <= 6, f"dashboard ran {counter['queries']} queries"
 
     def test_pages_with_their_own_event_list_do_not_query_it_twice(
         self, patched_app, db_path, user_id, monkeypatch

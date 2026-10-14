@@ -35,6 +35,7 @@ from database.queries import (
     get_event_summary,
     get_budgets,
     get_month_budget_status,
+    get_month_comparison,
 )
 
 # Python's mimetypes table has no entry for .webmanifest, so Flask's static
@@ -790,6 +791,7 @@ def profile():
         transactions=transactions,
         categories=categories,
         budget_status=get_month_budget_status(user_id),
+        month_comparison=get_month_comparison(user_id),
         active_preset=active_preset,
         exclude_events=exclude_events,
         transaction_limit=PROFILE_TRANSACTION_LIMIT,
