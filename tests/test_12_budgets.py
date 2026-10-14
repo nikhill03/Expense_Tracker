@@ -225,7 +225,10 @@ class TestBudgetStatus:
         from database.queries import get_month_budget_status
 
         _set_budget(db_path, user_id, "Food", 6000.0)
-        _spend(db_path, user_id, 1500.0, "Food")
+        # Pin the spend to the month being asked about. Letting it default to
+        # date.today() passed only while the calendar happened to agree with the
+        # hardcoded September below — it broke the moment October arrived.
+        _spend(db_path, user_id, 1500.0, "Food", when=date(2026, 9, 20))
 
         status = get_month_budget_status(user_id, today=date(2026, 9, 20))
         food = status["categories"][0]

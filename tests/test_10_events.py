@@ -20,6 +20,7 @@ Also covered: attaching expenses to an event and the dashboard's
 """
 
 import sqlite3
+from calendar import monthrange
 
 import pytest
 from werkzeug.security import generate_password_hash
@@ -43,6 +44,15 @@ def _make_conn(path):
 # refuses the future. Taken from the app's own clock, so this file cannot rot the
 # way the hardcoded "2026-09-21" did on the day it became tomorrow.
 _EXPENSE_DAY = timeutil.today().isoformat()
+
+# The month _EXPENSE_DAY falls in, for tests that filter by date range. Derived
+# for the same reason: a literal month boundary is correct until it isn't.
+_MONTH_START = timeutil.today().replace(day=1).isoformat()
+_MONTH_END = (
+    timeutil.today()
+    .replace(day=monthrange(timeutil.today().year, timeutil.today().month)[1])
+    .isoformat()
+)
 
 
 def _login(client, user_id, name="Test User"):
@@ -549,8 +559,11 @@ class TestDashboardEventFilter:
         assert "Everyday expense" in body
 
     def test_expenses_page_shows_event_chip(self, client_owner, seeded):
-        body = client_owner.get("/expenses?from=2026-09-01&to=2026-09-30").get_data(
-            as_text=True
-        )
+        # Filter the month the seeded expense actually lands in. A hardcoded
+        # September range passed only until the calendar rolled past it — the
+        # same rot the comment on _EXPENSE_DAY warns about.
+        body = client_owner.get(
+            f"/expenses?from={_MONTH_START}&to={_MONTH_END}"
+        ).get_data(as_text=True)
         assert "Event expense" in body
         assert "Goa Trip" in body
