@@ -13,6 +13,7 @@ second copy elsewhere.
 | 2026-09-26 | Step 16: installable PWA, and fonts moved off Google to fix a CSP regression (§3.11) | Going live behind a strict CSP silently blocked the webfonts; self-hosting fixed it without weakening the policy and made the offline shell possible |
 | 2026-10-14 | Step 17's leftover stat: "this month vs last month" on `/profile` (§3.12), its own query rather than folded into the aggregate | Finishes Step 17; the dashboard's query budget moves from 5 to 6, following the precedent `get_month_budget_status()` already set |
 | 2026-10-17 | Amount formatting moved out of the query layer, into a `\|rupees` filter — the rest of the refactor §5 started with dates | Queries returning `"₹1,234.00"` strings meant nothing could sum or compare an amount without a second unformatted copy of it, and blocked the JSON API step |
+| 2026-10-17 | Step 20: JSON API (`POST`/`GET /api/expenses`) with per-user Bearer tokens managed from `/account` (§3.13–3.14) | The amount refactor above was the last thing standing between the app and an automation that could read a plain number back; nothing else needed to change |
 
 ---
 
@@ -161,6 +162,35 @@ compared against all 30 days of the one before it would read as an enormous, mea
 `get_month_comparison()` clamps the previous month's cutoff to its own length, so 31 March compared against
 a 28-day February does not try to read past the 28th.
 
+### 3.13 API tokens are hashed fast, not slow
+`check_password_hash` on a login is deliberately expensive — scrypt's whole job is to make guessing a
+low-entropy, human-chosen password costly per attempt. An API token is the opposite case: 256 bits of
+`secrets.token_urlsafe`, never chosen by a person, already far beyond brute force regardless of how fast it
+is hashed. Paying scrypt's cost on every API call would only slow the API down for no security gained, so
+`api_tokens.token_hash` is a plain `sha256` hex digest, looked up with an indexed `WHERE token_hash = ?`
+rather than the "fetch by a known identifier, then slow-compare" shape a password check needs. This is the
+same reasoning GitHub, Stripe and AWS apply to their own tokens, not a shortcut specific to this app.
+
+The raw token is shown exactly once, on the response to creating it, and never stored — only its hash is.
+There is deliberately no "view your token again" anywhere, the same way there is no "see your password"
+anywhere: a token that can be re-displayed is a token the database holds in recoverable form, which is a
+worse property to have than "lost it, revoke it, make another."
+
+`POST /api/expenses` is the one route in `CSRF_EXEMPT_ENDPOINTS`. CSRF protection exists to stop a browser
+from being tricked into silently attaching a *session cookie* to a request a malicious page constructed;
+a Bearer-token request carries no session cookie and was never relying on one, so the threat the token
+protects against does not apply to it. Session-cookie routes keep the CSRF check exactly as before — this
+is not a blanket exemption, it is one route, chosen because its auth mechanism makes the check meaningless
+for it specifically.
+
+### 3.14 What the API does not do
+`POST /api/expenses` and `GET /api/expenses` are all of it — reusing `get_filtered_expenses()` directly for
+the list, which is the payoff of §3's date and amount refactors: the function already returns ISO dates and
+plain-number amounts, so the route is a thin `jsonify()` wrapper rather than its own query. Editing or
+deleting an expense over the API, budgets, and events all stay HTML-only. None of that is a wall; it is
+simply not what an automation logging an expense needs, and each one is its own surface to get the auth
+and validation right on rather than something to bundle in by default.
+
 ---
 
 ## 4. Deliberately not done
@@ -173,6 +203,8 @@ a 28-day February does not try to read past the 28th.
 | A cache layer | Every page is under a millisecond of query time | Only if a page ever becomes expensive to compute, which none is |
 | Off-site backups | The daily snapshots sit on the same volume as the database, so they cover a bad delete but not a lost volume | Anything that makes the data hard to re-enter — a second user, or a year of history |
 | CI | The suite runs locally in 45 seconds and one person merges everything | A second contributor, or the first time a broken `main` reaches the phone |
+| Rate limiting on `/api/expenses` | A leaked token is already a bigger problem than request volume, and revoking it (§3.13) closes the hole completely rather than slowing it down | More than one real user of the API, where one token's noisy client could crowd out another's |
+| Edit/delete/budgets/events over the API | Not what was asked for — logging an expense without a page load — and each one is its own auth and validation surface | An automation that actually needs to correct or remove an entry, not just add one |
 
 ---
 
