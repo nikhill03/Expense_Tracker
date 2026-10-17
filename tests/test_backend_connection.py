@@ -31,7 +31,7 @@ def test_get_user_by_id_not_found(patch_queries):
 def test_get_summary_stats_with_expenses(seeded_db):
     user_id, _, _ = seeded_db
     stats = get_summary_stats(user_id)
-    assert stats["total_spent"] == "₹1,700.00"
+    assert stats["total_spent"] == 1700.0
     assert stats["transaction_count"] == 3
     assert stats["top_category"] == "Bills"
 
@@ -51,7 +51,7 @@ def test_get_summary_stats_no_expenses(patch_queries):
     conn.close()
 
     stats = get_summary_stats(user_id)
-    assert stats["total_spent"] == "₹0.00"
+    assert stats["total_spent"] == 0
     assert stats["transaction_count"] == 0
     assert stats["top_category"] == "—"
 
@@ -67,8 +67,8 @@ def test_get_recent_transactions_with_expenses(seeded_db):
     # Newest date first
     assert txs[0]["date"] == "2026-07-10"
     assert txs[-1]["date"] == "2026-07-01"
-    # Amount formatted with ₹
-    assert txs[0]["amount"] == "₹500.00"
+    # Amount returned as a plain number — formatting is the template's job.
+    assert txs[0]["amount"] == 500.0
     # Required keys present
     for tx in txs:
         assert all(k in tx for k in ("date", "description", "category", "amount"))
@@ -100,7 +100,7 @@ def test_get_category_breakdown_with_expenses(seeded_db):
     assert len(cats) == 3
     # Ordered by amount descending
     assert cats[0]["name"] == "Bills"
-    assert cats[0]["amount"] == "₹1,000.00"
+    assert cats[0]["amount"] == 1000.0
     # Percentages are integers and sum to 100
     assert all(isinstance(c["pct"], int) for c in cats)
     assert sum(c["pct"] for c in cats) == 100

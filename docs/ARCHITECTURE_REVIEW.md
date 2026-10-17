@@ -12,6 +12,7 @@ second copy elsewhere.
 | 2026-09-20 | Deployment target moved from Railway to a self-hosted VM (`deploy/`, §3.9) | Railway's trial ended, and every free platform either has no persistent disk or an NFS one — SQLite with WAL needs a real local disk |
 | 2026-09-26 | Step 16: installable PWA, and fonts moved off Google to fix a CSP regression (§3.11) | Going live behind a strict CSP silently blocked the webfonts; self-hosting fixed it without weakening the policy and made the offline shell possible |
 | 2026-10-14 | Step 17's leftover stat: "this month vs last month" on `/profile` (§3.12), its own query rather than folded into the aggregate | Finishes Step 17; the dashboard's query budget moves from 5 to 6, following the precedent `get_month_budget_status()` already set |
+| 2026-10-17 | Amount formatting moved out of the query layer, into a `\|rupees` filter — the rest of the refactor §5 started with dates | Queries returning `"₹1,234.00"` strings meant nothing could sum or compare an amount without a second unformatted copy of it, and blocked the JSON API step |
 
 ---
 
@@ -166,8 +167,7 @@ a 28-day February does not try to read past the 28th.
 
 | Deferred | Why not now | What would change our mind |
 |---|---|---|
-| One connection per request (`flask.g`) | Touches all 17 `get_db()` call sites and every `finally: conn.close()`; worth ~1–2 ms | Doing it anyway as part of the formatting refactor below |
-| **Amount formatting inside the query layer** | Queries still return `"₹1,234.00"` strings, so callers can't do arithmetic and tests assert on formatted text. Dates are done — see §5 | **Must be fixed before the JSON API step** — a Shortcut wants `1234.0`, not a rupee string. Remaining work: return numbers, add a `\|rupees` Jinja filter beside the existing `\|dmy` |
+| One connection per request (`flask.g`) | Touches all 17 `get_db()` call sites and every `finally: conn.close()`; worth ~1–2 ms | A second contributor, or a page that ever needs more than ~2 queries |
 | Money as `REAL` instead of integer paise | Float error is ~1e-10 and invisible after 2-dp rounding | Any feature doing settlement maths, e.g. splitting a bill between people |
 | Postgres instead of SQLite | Single writer, single user; SQLite on a volume handles years of data comfortably | Concurrent writers, multiple devices writing at once, or background jobs |
 | A cache layer | Every page is under a millisecond of query time | Only if a page ever becomes expensive to compute, which none is |
@@ -193,5 +193,12 @@ is selected still goes to that event's page — that came later than the specs a
 its neighbour, and a `|dmy` Jinja filter does the formatting in the template. A date that has been turned into
 words cannot be compared or sorted; keeping it ISO until the last moment is the point.
 
-That filter is the first slice of the refactor in §4 — amounts still cross the query layer as `"₹1,234.00"`
-strings, and still need to stop before the JSON API step.
+**Amounts formatted in the query layer — the rest of that refactor.** Every stat, transaction, budget and event
+query returned a `"₹1,234.00"` string, which is why `get_month_budget_status()` was carrying `spent_value` and
+`budget_value` alongside the formatted `spent` and `budget` keys: the only way to sum or compare an amount was
+to keep an unformatted copy of it next to the formatted one. Queries now return plain numbers throughout, a
+`|rupees` filter formats them in the template beside the existing `|dmy`, and those duplicate `_value` keys are
+gone — `spent` and `budget` are themselves the raw figures now, nothing shadows them. `decimals=0` covers the one
+place that was never showing paise ("₹455 a day safe to spend"). This was the thing standing between the app and
+a JSON API: a Shortcut can read `1234.0` off these functions directly once one exists, with no string-parsing on
+either side.

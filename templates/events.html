@@ -21,7 +21,7 @@
            class="block py-4 transition-colors hover:bg-sunken/60">
             <div class="flex items-baseline justify-between gap-3">
                 <span class="font-display text-lg font-semibold tracking-tight">{{ event.name }}</span>
-                <span class="amount text-amount">{{ event.spent }}</span>
+                <span class="amount text-amount">{{ event.spent | rupees }}</span>
             </div>
 
             <p class="mt-0.5 text-tiny text-ink-3">
@@ -34,9 +34,9 @@
             </div>
             <p class="status mt-1.5 {% if event.over_budget %}status-over{% else %}status-good{% endif %}">
                 {% if event.over_budget %}
-                    Over the {{ event.budget }} budget by {{ event.remaining }}
+                    Over the {{ event.budget | rupees }} budget by {{ event.remaining | rupees }}
                 {% else %}
-                    {{ event.remaining }} left of {{ event.budget }}
+                    {{ event.remaining | rupees }} left of {{ event.budget | rupees }}
                 {% endif %}
             </p>
             {% endif %}
