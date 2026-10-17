@@ -55,6 +55,61 @@
         <button type="submit" class="btn btn-accent btn-block mt-7">Update password</button>
     </form>
 
+    <h2 class="section-title mt-10">API access</h2>
+    <p class="mt-1 text-sm text-ink-3">
+        A token lets something other than this app log an expense on your behalf — an iOS
+        Shortcut reading a bank alert, a script, anything that can send a request. Not the
+        login you use here; this is separate, and only ever does what you let it.
+    </p>
+
+    {% if new_token %}
+    <div class="notice notice-good mt-5" role="status">
+        <svg viewBox="0 0 20 20" class="mt-px h-4 w-4 shrink-0" fill="currentColor" aria-hidden="true"><path d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm3.7 6.2-4.2 4.6a1 1 0 0 1-1.45.04L5.9 10.7a1 1 0 0 1 1.4-1.42l1.4 1.38 3.52-3.85a1 1 0 0 1 1.48 1.35z"/></svg>
+        <div class="min-w-0">
+            <p class="font-semibold">Token created — copy it now.</p>
+            <p class="mt-0.5 text-tiny">
+                This is the only time it is shown. Lost it? Revoke it below and create another —
+                there is no way to see this one again.
+            </p>
+            <p class="amount mt-2 select-all break-all rounded-lg border border-rule bg-surface px-3 py-2 text-sm text-ink">{{ new_token }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('create_api_token') }}" class="mt-5 flex items-end gap-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="flex-1">
+            <label for="token_name" class="field-label">Name this token</label>
+            <input type="text" id="token_name" name="name" class="field"
+                   placeholder="e.g. iPhone Shortcut" maxlength="60">
+        </div>
+        <button type="submit" class="btn btn-accent">Create</button>
+    </form>
+
+    {% if tokens %}
+    <div class="ruled mt-5">
+        {% for token in tokens %}
+        <div class="ruled-row">
+            <div class="min-w-0">
+                <p class="truncate text-sm font-medium text-ink">{{ token.name }}</p>
+                <p class="text-tiny text-ink-3">
+                    Created {{ token.created_at[:10] | dmy }}
+                    {% if token.last_used_at %}· last used {{ token.last_used_at[:10] | dmy }}
+                    {% else %}· never used{% endif %}
+                </p>
+            </div>
+            <form method="post" action="{{ url_for('delete_api_token', token_id=token.id) }}"
+                  data-confirm="Revoke this token? Anything using it stops working immediately.">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-quiet">Revoke</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="mt-4 text-sm text-ink-3">No tokens yet.</p>
+    {% endif %}
+
     <p class="mt-8 text-center text-tiny text-ink-3">
         Keeping this ledger since {{ user.member_since }}.
     </p>

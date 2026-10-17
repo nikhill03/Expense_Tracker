@@ -73,6 +73,22 @@ def init_db():
             failures     INTEGER NOT NULL DEFAULT 0,
             locked_until TEXT
         );
+
+        -- token_hash, never the raw token: the value a client sends is
+        -- high-entropy (256 bits) and only ever compared, never recovered, so
+        -- a deterministic hash plus an indexed equality lookup is the correct
+        -- tool here — unlike a password, there is no low-entropy secret to
+        -- protect against a fast hash, and the alternative (scrypt per
+        -- request, the way login() checks a password) would make every API
+        -- call deliberately slow for no benefit.
+        CREATE TABLE IF NOT EXISTS api_tokens (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id      INTEGER NOT NULL REFERENCES users(id),
+            name         TEXT    NOT NULL,
+            token_hash   TEXT    NOT NULL UNIQUE,
+            created_at   TEXT    DEFAULT (datetime('now')),
+            last_used_at TEXT
+        );
     """
     )
 
@@ -94,6 +110,11 @@ def init_db():
     )
     conn.execute("DROP INDEX IF EXISTS idx_expenses_event")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id)")
+    # The UNIQUE constraint on token_hash already gives that column an index;
+    # this one is for listing a user's own tokens on /account.
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_api_tokens_user ON api_tokens(user_id)"
+    )
 
     conn.commit()
     conn.close()

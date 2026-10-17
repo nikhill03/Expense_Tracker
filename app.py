@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import mimetypes
 import os
@@ -7,6 +8,7 @@ import sqlite3
 import time
 from collections.abc import Mapping
 from datetime import date, datetime, timedelta
+from functools import wraps
 from flask import (
     Flask,
     render_template,
@@ -16,6 +18,7 @@ from flask import (
     session,
     abort,
     g,
+    jsonify,
     send_from_directory,
 )
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -131,11 +134,22 @@ EXPENSE_CATEGORIES = [
 
 def _parse_expense_form(form):
     """Parse and validate expense form fields. Returns (fields, amount, error)."""
-    amount_raw = form.get("amount", "").strip()
-    category = form.get("category", "").strip()
-    expense_date = form.get("date", "").strip()
-    description = form.get("description", "").strip() or None
+    return _validate_expense_fields(
+        form.get("amount", "").strip(),
+        form.get("category", "").strip(),
+        form.get("date", "").strip(),
+        form.get("description", "").strip() or None,
+    )
 
+
+def _validate_expense_fields(amount_raw, category, expense_date, description):
+    """The actual expense rules, shared by the HTML forms and the JSON API.
+
+    Callers pass already-stripped primitives — form.get(...).strip() on the
+    HTML side, the JSON body's values coerced to str on the API side — so this
+    function itself does not care which one sent it. Returns
+    (fields, amount, error), same shape either way.
+    """
     fields = {
         "amount_raw": amount_raw,
         "category": category,
@@ -343,7 +357,13 @@ def _owned_event_or_abort(event_id):
 # Cross-cutting: CSRF, timing, errors, health                         #
 # ------------------------------------------------------------------ #
 
-CSRF_EXEMPT_ENDPOINTS = set()
+# api_create_expense is the one route a browser session never POSTs to — it is
+# authenticated by a Bearer token in a header, not the session cookie, so there
+# is no csrf_token to send and nothing a forged cross-site form could forge.
+# CSRF protection exists to stop a browser silently attaching cookies to a
+# request a malicious page constructed; a request carrying its own bearer
+# token was never relying on the cookie in the first place.
+CSRF_EXEMPT_ENDPOINTS = {"api_create_expense"}
 
 
 def _csrf_enabled():
@@ -834,7 +854,10 @@ def account():
 
     if request.method == "GET":
         return render_template(
-            "account.html", user=user, saved=request.args.get("saved")
+            "account.html",
+            user=user,
+            tokens=_list_api_tokens(user_id),
+            saved=request.args.get("saved"),
         )
 
     current_password = request.form.get("current_password", "")
@@ -842,7 +865,9 @@ def account():
     confirm_password = request.form.get("confirm_password", "")
 
     def redisplay(msg):
-        return render_template("account.html", user=user, error=msg)
+        return render_template(
+            "account.html", user=user, tokens=_list_api_tokens(user_id), error=msg
+        )
 
     if not current_password or not new_password or not confirm_password:
         return redisplay("All fields are required.")
@@ -1433,6 +1458,241 @@ def _quick_backdrop(user_id, today):
             user_id, limit=6, from_date=first_day, to_date=today.isoformat()
         ),
     }
+
+
+# ------------------------------------------------------------------ #
+# JSON API — tokens on /account, expenses at /api/expenses            #
+# ------------------------------------------------------------------ #
+#
+# Built for exactly one thing: an automation (an iOS Shortcut, a script,
+# anything that can send an HTTP request) logging an expense without a page
+# load. Reading the list back is the other half of that — confirming a save
+# landed, or pulling the month's data somewhere else.
+#
+# Deliberately not built: editing or deleting an expense over the API,
+# budgets, events. Nothing here stops those being added the same way later;
+# they just were not what was asked for, and each one is its own surface to
+# get the auth and validation right on.
+
+
+def _hash_api_token(raw_token):
+    """A token is 256 bits of randomness, not a user-chosen secret — unlike a
+    password, there is no low-entropy guess to slow down, so a fast,
+    deterministic hash plus an indexed equality lookup is the right tool
+    rather than the scrypt cost login() pays on every attempt."""
+    return hashlib.sha256(raw_token.encode()).hexdigest()
+
+
+def _generate_api_token(user_id, name):
+    """Create a token and return its raw value. The raw value is shown to the
+    user exactly once, on this response — only the hash is ever stored, so
+    there is no "forgot my token" recovery, the same way there is no
+    "forgot my password" recovery. A revoked or lost token is replaced, not
+    found again."""
+    raw_token = "bk_" + secrets.token_urlsafe(32)
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO api_tokens (user_id, name, token_hash) VALUES (?, ?, ?)",
+            (user_id, name, _hash_api_token(raw_token)),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return raw_token
+
+
+def _list_api_tokens(user_id):
+    conn = get_db()
+    try:
+        return conn.execute(
+            "SELECT id, name, created_at, last_used_at FROM api_tokens"
+            " WHERE user_id = ? ORDER BY created_at DESC",
+            (user_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+
+def _authenticate_api_token(raw_token):
+    """Return the owning user_id for a valid token, else None.
+
+    Updates last_used_at so a stale, unused token is identifiable on /account
+    before it is ever abused — the same reasoning as showing "last signed in"
+    anywhere else.
+    """
+    if not raw_token:
+        return None
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT id, user_id FROM api_tokens WHERE token_hash = ?",
+            (_hash_api_token(raw_token),),
+        ).fetchone()
+        if row is None:
+            return None
+        conn.execute(
+            "UPDATE api_tokens SET last_used_at = datetime('now') WHERE id = ?",
+            (row["id"],),
+        )
+        conn.commit()
+        return row["user_id"]
+    finally:
+        conn.close()
+
+
+def api_auth_required(view):
+    """Guard a JSON route with a Bearer token instead of the session cookie.
+
+    Deliberately a separate mechanism from session auth rather than accepting
+    either: a route that trusted both would inherit CSRF's threat model on
+    the cookie path while still needing the Bearer exemption on the token
+    path, which is a harder thing to reason about than two routes that each
+    do one thing.
+    """
+
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return (
+                jsonify(error="Missing Authorization header. Use: Bearer <token>"),
+                401,
+            )
+
+        user_id = _authenticate_api_token(auth_header[len("Bearer ") :].strip())
+        if user_id is None:
+            return jsonify(error="Invalid or revoked API token."), 401
+
+        g.api_user_id = user_id
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+@app.route("/account/tokens", methods=["POST"])
+def create_api_token():
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+    name = request.form.get("name", "").strip() or "Unnamed token"
+    raw_token = _generate_api_token(user_id, name[:60])
+
+    # Rendered directly, not redirected: the raw token exists only in this one
+    # response. A redirect would mean carrying it in a URL or the session to
+    # survive the round trip, and either one leaves a copy of a secret
+    # somewhere it does not need to be. Reloading this page is the same as
+    # reloading after any one-time reveal — the value is simply gone.
+    return render_template(
+        "account.html",
+        user=get_user_by_id(user_id),
+        tokens=_list_api_tokens(user_id),
+        new_token=raw_token,
+    )
+
+
+@app.route("/account/tokens/<int:token_id>/delete", methods=["POST"])
+def delete_api_token(token_id):
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    conn = get_db()
+    try:
+        conn.execute(
+            "DELETE FROM api_tokens WHERE id = ? AND user_id = ?",
+            (token_id, session["user_id"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return redirect(url_for("account"))
+
+
+@app.route("/api/expenses", methods=["POST"])
+@api_auth_required
+def api_create_expense():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(error="Request body must be a JSON object."), 400
+
+    raw_description = data.get("description")
+    fields, amount, error = _validate_expense_fields(
+        str(data.get("amount", "")).strip(),
+        str(data.get("category", "")).strip(),
+        str(data.get("date") or timeutil.today().isoformat()).strip(),
+        (str(raw_description).strip() or None) if raw_description is not None else None,
+    )
+    if error:
+        return jsonify(error=error), 400
+
+    event_id = None
+    if data.get("event_id") is not None:
+        try:
+            candidate_id = int(data["event_id"])
+        except (TypeError, ValueError):
+            return jsonify(error="event_id must be an integer."), 400
+        event = get_event_by_id(candidate_id)
+        if event is None or event["user_id"] != g.api_user_id:
+            return jsonify(error="event_id does not belong to this account."), 400
+        event_id = candidate_id
+
+    conn = get_db()
+    try:
+        cursor = conn.execute(
+            "INSERT INTO expenses (user_id, event_id, amount, category, date, description)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                g.api_user_id,
+                event_id,
+                amount,
+                fields["category"],
+                fields["expense_date"],
+                fields["description"],
+            ),
+        )
+        conn.commit()
+        expense_id = cursor.lastrowid
+    finally:
+        conn.close()
+
+    return (
+        jsonify(
+            id=expense_id,
+            amount=amount,
+            category=fields["category"],
+            date=fields["expense_date"],
+            description=fields["description"],
+            event_id=event_id,
+        ),
+        201,
+    )
+
+
+@app.route("/api/expenses", methods=["GET"])
+@api_auth_required
+def api_list_expenses():
+    today = timeutil.today()
+    from_date = request.args.get("from", "").strip() or today.replace(day=1).isoformat()
+    to_date = request.args.get("to", "").strip() or today.isoformat()
+    page = request.args.get("page", default=1, type=int) or 1
+
+    # get_filtered_expenses already returns plain numbers and ISO dates —
+    # the amount-formatting refactor this depended on is what made this route
+    # a return-the-dict-as-JSON exercise rather than its own query.
+    expense_list, total, pagination = get_filtered_expenses(
+        g.api_user_id, from_date, to_date, page=page, per_page=100
+    )
+
+    return jsonify(
+        expenses=expense_list,
+        total=total,
+        from_date=from_date,
+        to_date=to_date,
+        pagination=pagination,
+    )
 
 
 if __name__ == "__main__":
