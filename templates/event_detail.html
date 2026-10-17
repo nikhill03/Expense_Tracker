@@ -30,7 +30,7 @@
 
     <section class="mt-8">
         <p class="text-tiny font-semibold text-ink-3">Spent on this event</p>
-        <p class="amount mt-1 text-hero text-ink">{{ summary.spent }}</p>
+        <p class="amount mt-1 text-hero text-ink">{{ summary.spent | rupees }}</p>
         <div class="mt-3 h-0.5 w-16 rounded-full bg-lac"></div>
 
         {% if summary.budget %}
@@ -39,9 +39,9 @@
         </div>
         <p class="status mt-2 {% if summary.over_budget %}status-over{% else %}status-good{% endif %}">
             {% if summary.over_budget %}
-                {{ summary.remaining }} over the {{ summary.budget }} budget
+                {{ summary.remaining | rupees }} over the {{ summary.budget | rupees }} budget
             {% else %}
-                {{ summary.remaining }} left of {{ summary.budget }}
+                {{ summary.remaining | rupees }} left of {{ summary.budget | rupees }}
             {% endif %}
         </p>
         {% else %}

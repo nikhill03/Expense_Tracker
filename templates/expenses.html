@@ -28,7 +28,7 @@
             <span class="font-normal">· showing {{ pagination.first_index }}–{{ pagination.last_index }} of {{ pagination.count }}</span>
             {% endif %}
         </span>
-        <span class="amount text-xl text-ink">{{ total }}</span>
+        <span class="amount text-xl text-ink">{{ total | rupees }}</span>
     </div>
 
     {{ tx_rows(expenses, 'No expenses in this date range. Try widening the dates.') }}

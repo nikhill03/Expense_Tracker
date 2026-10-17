@@ -403,6 +403,24 @@ def dmy(value):
 app.jinja_env.filters["dmy"] = dmy
 
 
+def rupees(value, decimals=2):
+    """A number the way a person reads money: ₹1,234.00.
+
+    Amounts cross the query layer as plain numbers, same reasoning as |dmy for
+    dates: a value that has already been turned into a string can't be summed,
+    compared, or handed to a JSON API — formatting is the template's job.
+    `decimals=0` is for the one figure meant to read as a round number
+    ("₹455 a day"), not a precise one.
+    """
+    try:
+        return f"₹{float(value):,.{decimals}f}"
+    except (TypeError, ValueError):
+        return value
+
+
+app.jinja_env.filters["rupees"] = rupees
+
+
 _last_backup_day = None
 
 
@@ -815,7 +833,9 @@ def account():
     user = get_user_by_id(user_id)
 
     if request.method == "GET":
-        return render_template("account.html", user=user, saved=request.args.get("saved"))
+        return render_template(
+            "account.html", user=user, saved=request.args.get("saved")
+        )
 
     current_password = request.form.get("current_password", "")
     new_password = request.form.get("new_password", "")

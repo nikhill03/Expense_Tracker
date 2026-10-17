@@ -232,9 +232,9 @@ class TestBudgetStatus:
 
         status = get_month_budget_status(user_id, today=date(2026, 9, 20))
         food = status["categories"][0]
-        assert food["spent"] == "₹1,500.00"
-        assert food["budget"] == "₹6,000.00"
-        assert food["remaining"] == "₹4,500.00"
+        assert food["spent"] == 1500.0
+        assert food["budget"] == 6000.0
+        assert food["remaining"] == 4500.0
         assert food["pct_of_budget"] == 25
         assert food["over_budget"] is False
 
@@ -256,7 +256,7 @@ class TestBudgetStatus:
 
         food = get_month_budget_status(user_id)["categories"][0]
         assert food["over_budget"] is True
-        assert food["remaining"] == "₹200.00"  # the overspend
+        assert food["remaining"] == 200.0  # the overspend
         assert food["pct_of_budget"] == 100  # the bar never exceeds full
 
     def test_safe_to_spend_per_day(self, db_path, user_id):
@@ -268,7 +268,7 @@ class TestBudgetStatus:
         # 20 September: 11 days left including today, ₹5,000 unspent.
         status = get_month_budget_status(user_id, today=date(2026, 9, 20))
         assert status["days_left"] == 11
-        assert status["safe_per_day"] == "₹455"
+        assert round(status["safe_per_day"]) == 455
 
     def test_last_day_of_month_does_not_divide_by_zero(self, db_path, user_id):
         from database.queries import get_month_budget_status
@@ -278,7 +278,7 @@ class TestBudgetStatus:
 
         status = get_month_budget_status(user_id, today=last)
         assert status["days_left"] == 1
-        assert status["safe_per_day"] == "₹3,000"
+        assert status["safe_per_day"] == 3000.0
 
     def test_over_budget_never_reports_a_safe_amount(self, db_path, user_id):
         from database.queries import get_month_budget_status
@@ -288,7 +288,7 @@ class TestBudgetStatus:
 
         status = get_month_budget_status(user_id)
         assert status["over_total"] is True
-        assert status["safe_per_day"] == "₹0"
+        assert status["safe_per_day"] == 0
 
     def test_other_months_spending_is_ignored(self, db_path, user_id):
         from database.queries import get_month_budget_status
@@ -298,7 +298,7 @@ class TestBudgetStatus:
         _spend(db_path, user_id, 500.0, "Food", when=date(2026, 9, 10))
 
         status = get_month_budget_status(user_id, today=date(2026, 9, 20))
-        assert status["categories"][0]["spent"] == "₹500.00"
+        assert status["categories"][0]["spent"] == 500.0
 
     def test_unbudgeted_categories_do_not_count(self, db_path, user_id):
         from database.queries import get_month_budget_status
@@ -308,7 +308,7 @@ class TestBudgetStatus:
         _spend(db_path, user_id, 4000.0, "Shopping")
 
         status = get_month_budget_status(user_id)
-        assert status["spent_total"] == "₹500.00"
+        assert status["spent_total"] == 500.0
         assert len(status["categories"]) == 1
 
     def test_event_spending_counts_toward_budgets(self, db_path, user_id):
@@ -328,7 +328,7 @@ class TestBudgetStatus:
         _set_budget(db_path, user_id, "Food", 5000.0)
 
         status = get_month_budget_status(user_id)
-        assert status["spent_total"] == "₹800.00"
+        assert status["spent_total"] == 800.0
 
 
 # ------------------------------------------------------------------ #

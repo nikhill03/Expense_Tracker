@@ -88,7 +88,7 @@ def get_summary_stats(
     top_category = top_row["category"] if top_row else "—"
 
     return {
-        "total_spent": f"₹{agg['total']:,.2f}",
+        "total_spent": agg["total"],
         "transaction_count": agg["cnt"],
         "top_category": top_category,
     }
@@ -100,7 +100,7 @@ def _summary_from_rows(rows):
     count = sum(row["cnt"] for row in rows)
     top_category = rows[0]["category"] if rows else "—"
     return {
-        "total_spent": f"₹{total:,.2f}",
+        "total_spent": total,
         "transaction_count": count,
         "top_category": top_category,
     }
@@ -115,7 +115,7 @@ def _breakdown_from_rows(rows):
     items = [
         {
             "name": row["category"],
-            "amount": f"₹{row['total']:,.2f}",
+            "amount": row["total"],
             "pct": int(row["total"] / grand_total * 100),
         }
         for row in rows
@@ -190,7 +190,7 @@ def get_recent_transactions(
                 "date": row["date"],
                 "description": row["description"],
                 "category": row["category"],
-                "amount": f"₹{row['amount']:,.2f}",
+                "amount": row["amount"],
                 "event_id": row["event_id"],
                 "event_name": row["event_name"],
             }
@@ -275,7 +275,7 @@ def get_filtered_expenses(
             "date": r["date"],
             "description": r["description"],
             "category": r["category"],
-            "amount": f"₹{r['amount']:,.2f}",
+            "amount": r["amount"],
             "event_id": r["event_id"],
             "event_name": r["event_name"],
         }
@@ -295,7 +295,7 @@ def get_filtered_expenses(
         "last_index": min(page * per_page, count),
     }
 
-    return expense_list, f"₹{agg['total']:,.2f}", pagination
+    return expense_list, agg["total"], pagination
 
 
 # ------------------------------------------------------------------ #
@@ -332,8 +332,8 @@ def _budget_view(spent, budget):
         }
     remaining = budget - spent
     return {
-        "budget": f"₹{budget:,.2f}",
-        "remaining": f"₹{abs(remaining):,.2f}",
+        "budget": budget,
+        "remaining": abs(remaining),
         "pct_of_budget": min(int(spent / budget * 100), 100),
         "over_budget": remaining < 0,
     }
@@ -385,7 +385,7 @@ def get_events_for_user(user_id):
             "id": row["id"],
             "name": row["name"],
             "date_range": _date_range_label(row["start_date"], row["end_date"]),
-            "spent": f"₹{row['spent']:,.2f}",
+            "spent": row["spent"],
             "expense_count": row["cnt"],
         }
         event.update(_budget_view(row["spent"], row["budget"]))
@@ -425,7 +425,7 @@ def get_event_summary(event_id):
     summary = {
         "name": row["name"],
         "date_range": _date_range_label(row["start_date"], row["end_date"]),
-        "spent": f"₹{row['spent']:,.2f}",
+        "spent": row["spent"],
         "expense_count": row["cnt"],
     }
     summary.update(_budget_view(row["spent"], row["budget"]))
@@ -486,29 +486,30 @@ def get_month_budget_status(user_id, today=None):
     for row in rows:
         entry = {
             "name": row["category"],
-            "spent": f"₹{row['spent']:,.2f}",
-            "spent_value": row["spent"],
-            "budget_value": row["monthly_amount"],
+            "spent": row["spent"],
             # Amber before the limit, red past it — the warning is the point.
             "nearly_spent": 0.8 <= row["spent"] / row["monthly_amount"] < 1,
         }
         entry.update(_budget_view(row["spent"], row["monthly_amount"]))
         categories.append(entry)
 
-    budget_total = sum(c["budget_value"] for c in categories)
-    spent_total = sum(c["spent_value"] for c in categories)
+    # Summed from the raw rows rather than the categories list above — "spent"
+    # and "budget" there are the same numbers, just no longer carrying a
+    # second "_value" copy now that neither is formatted into a string.
+    budget_total = sum(row["monthly_amount"] for row in rows)
+    spent_total = sum(row["spent"] for row in rows)
     left = budget_total - spent_total
     days_left = days_in_month - today.day + 1
 
     return {
         "month_label": today.strftime("%B %Y"),
         "categories": categories,
-        "budget_total": f"₹{budget_total:,.2f}",
-        "spent_total": f"₹{spent_total:,.2f}",
-        "left_total": f"₹{abs(left):,.2f}",
+        "budget_total": budget_total,
+        "spent_total": spent_total,
+        "left_total": abs(left),
         "over_total": left < 0,
         "days_left": days_left,
-        "safe_per_day": f"₹{max(left, 0) / days_left:,.0f}",
+        "safe_per_day": max(left, 0) / days_left,
         "pct_used": (
             min(int(spent_total / budget_total * 100), 100) if budget_total else 0
         ),

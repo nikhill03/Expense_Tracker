@@ -12,12 +12,12 @@
     <div class="pointer-events-none absolute inset-0 select-none" aria-hidden="true">
         <div class="shell pt-6">
             <p class="font-display text-tiny font-semibold text-ink-3">{{ month_label }} so far</p>
-            <p class="amount mt-1 text-5xl text-ink">{{ month_total }}</p>
+            <p class="amount mt-1 text-5xl text-ink">{{ month_total | rupees }}</p>
             <div class="ruled mt-5">
                 {% for tx in backdrop %}
                 <div class="ruled-row">
                     <span class="truncate text-sm text-ink-2">{{ tx.description or tx.category }}</span>
-                    <span class="amount text-amount">{{ tx.amount }}</span>
+                    <span class="amount text-amount">{{ tx.amount | rupees }}</span>
                 </div>
                 {% endfor %}
             </div>
